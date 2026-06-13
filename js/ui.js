@@ -228,7 +228,7 @@ const UI = (function () {
          <h1>JARL</h1>
          <p class="sub">Vikingatåg över Norden · 793 e.Kr</p>
          <ul>
-           <li>🔴 Du leder <b>Ulfssons ätt</b> i Vestfold.</li>
+           <li>🔴 Du leder <b>Ulfssons ätt</b> i Vestfold och Hordaland.</li>
            <li>⚒️ <b>Rekrytera</b> krigare och <b>bygg</b> upp dina bygder.</li>
            <li>🔥 <b>Raida</b> kristna kloster (✝) för silver och ära.</li>
            <li>⚔️ <b>Erövra</b> grannar — landväg eller över hav (streckad linje).</li>
