@@ -6,6 +6,10 @@ och **Crusader Kings** — med fokus på vikingarna: segla, **raida**, plundra o
 
 Ren HTML5 Canvas + JavaScript, ingen build. Spelbart direkt i mobilwebbläsaren.
 
+## ▶ Spela online
+
+**https://josefbro.github.io/jarl/** — öppna på datorn eller mobilen och spela direkt.
+
 ## Kör
 
 **Snabbast:** öppna `standalone.html` direkt i valfri webbläsare (även på mobilen) —
