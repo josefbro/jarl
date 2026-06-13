@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jarl",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-c", "import sys; sys.path=[p for p in sys.path if p not in ('','.')]; import http.server,socketserver,functools; socketserver.TCPServer.allow_reuse_address=True; h=functools.partial(http.server.SimpleHTTPRequestHandler,directory='.'); socketserver.TCPServer(('',8080),h).serve_forever()"],
+      "port": 8080
+    }
+  ]
+}

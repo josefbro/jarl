@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1410">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>JARL — Vikingatåg</title>
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <div id="app">
+    <header id="hud"></header>
+    <main id="mapwrap">
+      <canvas id="map"></canvas>
+      <div id="log"></div>
+      <button id="endTurnBtn">⛵ Avsluta tur</button>
+    </main>
+    <footer id="panel"></footer>
+  </div>
+
+  <div id="sheet" class="hidden"></div>
+  <div id="overlay" class="hidden"></div>
+
+  <script src="js/config.js?v=1"></script>
+  <script src="js/engine.js?v=1"></script>
+  <script src="js/render.js?v=1"></script>
+  <script src="js/ui.js?v=1"></script>
+  <script src="js/main.js?v=1"></script>
+</body>
+</html>
