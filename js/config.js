@@ -19,7 +19,7 @@ const CONFIG = {
   MAX_SETTLEMENT: 3,
 
   // seger / förlust
-  RENOWN_TO_WIN: 1000,
+  RENOWN_TO_WIN: 1200,
   PROVINCES_TO_WIN: 12,
 };
 
@@ -36,7 +36,7 @@ const FACTIONS = [
 const PROVINCES = [
   // --- Norge ---
   { id:'trondelag', name:'Trøndelag',     x:445, y:170, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
-  { id:'hordaland', name:'Hordaland',     x:378, y:300, owner:'neutral',   type:'norse',     garrison:5,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'hordaland', name:'Hordaland',     x:378, y:300, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
   { id:'vestfold',  name:'Vestfold',      x:470, y:420, owner:'player',    type:'norse',     garrison:12, settlement:1, income:12, food:6,  loot:30,  lootMax:50,  def:1.10 },
   // --- Sverige ---
   { id:'uppland',   name:'Uppland',       x:618, y:325, owner:'bjornsson', type:'norse',     garrison:11, settlement:1, income:12, food:6,  loot:30,  lootMax:50,  def:1.10 },

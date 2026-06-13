@@ -8,12 +8,16 @@ Ren HTML5 Canvas + JavaScript, ingen build. Spelbart direkt i mobilwebbläsaren.
 
 ## Kör
 
+**Snabbast:** öppna `standalone.html` direkt i valfri webbläsare (även på mobilen) —
+hela spelet ligger i en enda fil, ingen server behövs. AirDrop:a den till telefonen
+och lägg till på hemskärmen för app-känsla.
+
 ```bash
-# valfri statisk server, t.ex.
-python3 -m http.server 8000
-# öppna sedan http://localhost:8000  (helst i mobilläge / på telefon)
+# eller kör projektet med dev-server (för utveckling med separata filer):
+python3 -m http.server 8000   # öppna http://localhost:8000
 ```
-Eller öppna `index.html` direkt (allt är vanilla, inga moduler/CORS-krav).
+`index.html` (separata filer) går också att öppna direkt — allt är vanilla JS,
+inga moduler/CORS-krav. `standalone.html` byggs om från källfilerna med `build.sh`.
 
 ## Hur man spelar (MVP)
 

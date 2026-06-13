@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b1410">
+<title>JARL — Vikingatåg</title>
+<style>
+body{margin:0;background:#0d2229}
+/* ============================================================
+   JARL — stil (mobil-first, nordiskt: trä, pergament, guld)
+   ============================================================ */
+:root {
+  --wood:    #1b1410;
+  --wood2:   #2b2018;
+  --parch:   #e9dcc3;
+  --gold:    #f4d35e;
+  --ink:     #efe6d4;
+  --good:    #8fdc8f;
+  --bad:     #ff8a76;
+  --sea:     #0d2229;
+  --rad:     14px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%;
+  background: var(--sea);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  overflow: hidden; user-select: none; -webkit-user-select: none;
+  overscroll-behavior: none;
+}
+
+#app {
+  display: flex; flex-direction: column;
+  height: 100dvh;
+}
+
+/* ---------- HUD ---------- */
+#hud {
+  flex: none;
+  display: flex; gap: 6px; align-items: stretch;
+  padding: 8px 8px calc(8px + env(safe-area-inset-top, 0));
+  padding-top: calc(8px + env(safe-area-inset-top, 0));
+  background: linear-gradient(180deg, var(--wood), var(--wood2));
+  border-bottom: 2px solid #000;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.chip {
+  flex: 1 0 auto; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 5px 8px; border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(244,211,94,0.18);
+}
+.chip .ic  { font-size: 15px; line-height: 1; }
+.chip .lab { font-size: 9px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.chip .val { font-size: 14px; font-weight: 700; color: var(--gold); margin-top: 1px; }
+
+/* ---------- karta ---------- */
+#mapwrap { position: relative; flex: 1 1 auto; min-height: 0; }
+#map { display: block; width: 100%; height: 100%; touch-action: none; }
+
+#log {
+  position: absolute; left: 8px; right: 8px; top: 8px;
+  display: flex; flex-direction: column; gap: 4px;
+  pointer-events: none;
+}
+.logline {
+  align-self: flex-start; max-width: 92%;
+  background: rgba(15,20,16,0.82);
+  border-left: 3px solid var(--gold);
+  padding: 5px 9px; border-radius: 7px;
+  font-size: 12.5px; line-height: 1.3;
+  animation: slidein 0.25s ease;
+}
+.logline.good   { border-left-color: var(--good); }
+.logline.bad    { border-left-color: var(--bad); }
+.logline.system { border-left-color: #9fc7d6; }
+@keyframes slidein { from { opacity: 0; transform: translateX(-8px);} to { opacity: 1; transform: none; } }
+
+#endTurnBtn {
+  position: absolute; right: 12px; bottom: 12px;
+  padding: 13px 18px; border: none; border-radius: 30px;
+  background: linear-gradient(180deg, #c0392b, #97271c);
+  color: #fff; font-size: 15px; font-weight: 800;
+  box-shadow: 0 5px 16px rgba(0,0,0,0.45);
+  border: 1.5px solid rgba(244,211,94,0.55);
+}
+#endTurnBtn:disabled { opacity: 0.75; filter: grayscale(0.3); }
+#endTurnBtn:active { transform: translateY(1px); }
+
+/* ---------- nederpanel ---------- */
+#panel {
+  flex: none;
+  background: linear-gradient(180deg, var(--wood2), var(--wood));
+  border-top: 2px solid #000;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0));
+  min-height: 92px;
+}
+.hint { font-size: 13px; line-height: 1.45; opacity: 0.9; }
+.ptitle { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+.ptitle .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
+.ptitle .ownr { margin-left: auto; font-size: 12px; opacity: 0.7; }
+
+.stats { display: flex; gap: 6px; margin: 9px 0; flex-wrap: wrap; }
+.stat {
+  flex: 1 0 auto; display: flex; align-items: baseline; gap: 4px;
+  background: rgba(255,255,255,0.05); border-radius: 8px; padding: 5px 8px;
+  font-size: 11px;
+}
+.stat span { font-size: 13px; }
+.stat b { color: var(--gold); font-size: 14px; }
+.stat i { opacity: 0.6; font-style: normal; }
+
+.actions { display: flex; gap: 8px; margin-bottom: 8px; }
+.act {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 10px 6px; border-radius: 10px; border: 1px solid rgba(244,211,94,0.3);
+  background: rgba(244,211,94,0.10); color: var(--ink);
+  font-size: 13.5px; font-weight: 700;
+}
+.act small { font-size: 10.5px; font-weight: 500; opacity: 0.7; }
+.act:disabled { opacity: 0.4; }
+.act:active:not(:disabled) { transform: translateY(1px); }
+
+/* ---------- actionsheet ---------- */
+#sheet {
+  position: fixed; inset: 0; z-index: 30;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0,0,0,0.45);
+}
+#sheet.hidden, #overlay.hidden { display: none; }
+.sheet-card {
+  width: 100%; max-width: 520px;
+  background: linear-gradient(180deg, #322519, #221913);
+  border-top: 3px solid var(--gold);
+  border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0));
+  animation: rise 0.2s ease;
+}
+@keyframes rise { from { transform: translateY(40px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.stitle { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+.sinfo { font-size: 13px; opacity: 0.85; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sinfo .dot { width: 10px; height: 10px; border-radius: 50%; }
+.slider { margin: 14px 0 6px; }
+.slider label { font-size: 13px; opacity: 0.85; }
+.slider label b { color: var(--gold); font-size: 16px; }
+.slider input[type=range] { width: 100%; margin: 8px 0 4px; accent-color: var(--gold); height: 28px; }
+.odds { font-size: 13px; font-weight: 700; }
+
+.sbtns { display: flex; gap: 10px; margin: 10px 0; }
+.big {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 14px 10px; border: none; border-radius: 13px;
+  font-size: 15px; font-weight: 800; color: #fff;
+  background: #444; border: 1.5px solid rgba(255,255,255,0.15);
+}
+.big small { font-size: 10.5px; font-weight: 500; opacity: 0.85; }
+.big.raid   { background: linear-gradient(180deg, #d9822b, #a8631d); }
+.big.invade { background: linear-gradient(180deg, #c0392b, #8f271d); border-color: rgba(244,211,94,0.5); }
+.big:active { transform: translateY(1px); }
+.cancel {
+  width: 100%; padding: 11px; margin-top: 4px;
+  background: transparent; border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 11px; color: var(--ink); font-size: 14px; font-weight: 600;
+}
+
+/* ---------- overlay (intro / game over) ---------- */
+#overlay {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 30%, rgba(40,28,18,0.92), rgba(8,12,10,0.97));
+  backdrop-filter: blur(3px);
+}
+.ov-card {
+  width: 100%; max-width: 440px; text-align: center;
+  background: linear-gradient(180deg, #322519, #1d150f);
+  border: 1.5px solid rgba(244,211,94,0.4);
+  border-radius: 20px; padding: 26px 22px;
+  box-shadow: 0 14px 50px rgba(0,0,0,0.6);
+}
+.ov-card h1 {
+  margin: 0 0 4px; font-size: 40px; letter-spacing: 5px; color: var(--gold);
+  font-weight: 900; text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+.ov-card .sub { margin: 0 0 16px; font-size: 14px; opacity: 0.8; }
+.ov-card ul { text-align: left; margin: 0 0 20px; padding-left: 4px; list-style: none; }
+.ov-card li { font-size: 14px; line-height: 1.7; }
+.ov-stats { font-size: 14px; opacity: 0.85; margin-bottom: 18px; }
+.ov-card .big { width: 100%; flex: none; }
+</style>
+</head>
+<body>
+<div id="app">
+<header id="hud"></header>
+<main id="mapwrap"><canvas id="map"></canvas><div id="log"></div><button id="endTurnBtn">⛵ Avsluta tur</button></main>
+<footer id="panel"></footer>
+</div>
+<div id="sheet" class="hidden"></div>
+<div id="overlay" class="hidden"></div>
+<script>
+// ============================================================
+//  JARL — config & speldata (vikingatidens norra Europa)
+//  Logisk värld är WORLD_W x WORLD_H. Kartan skalas till
+//  skärmen vid rendering (se render.js).
+// ============================================================
+
+const CONFIG = {
+  WORLD_W: 1000,
+  WORLD_H: 1180,
+  NODE_R: 26,            // provinsnodens radie i världsenheter
+  HIT_R: 58,             // träffradie för touch i världsenheter
+
+  // ekonomi
+  RECRUIT_BATCH: 5,
+  RECRUIT_SILVER: 25,    // per batch
+  RECRUIT_FOOD: 5,       // per batch
+  SETTLEMENT_INCOME: 4,  // bonus-silver per bebyggelsenivå
+  BUILD_BASE_COST: 60,   // * (nivå + 1)
+  MAX_SETTLEMENT: 3,
+
+  // seger / förlust
+  RENOWN_TO_WIN: 1200,
+  PROVINCES_TO_WIN: 12,
+};
+
+// kind: player | viking (AI-ätt) | christian (rikt rovbyte, defensiv) | neutral
+const FACTIONS = [
+  { id:'player',    name:'Ulfssons ätt',   short:'Du',    color:'#c0392b', kind:'player'    },
+  { id:'ravnsson',  name:'Ravnssons ätt',  short:'Ravn',  color:'#2c6e8f', kind:'viking'    },
+  { id:'bjornsson', name:'Björnssons ätt', short:'Björn', color:'#7a9a3a', kind:'viking'    },
+  { id:'christian', name:'Kristna riken',  short:'Kors',  color:'#9a8a66', kind:'christian' },
+  { id:'neutral',   name:'Fria bygder',    short:'Fri',   color:'#6f6f6f', kind:'neutral'   },
+];
+
+// type: norse (Skandinavien) | island | christian (rika raid-mål)
+const PROVINCES = [
+  // --- Norge ---
+  { id:'trondelag', name:'Trøndelag',     x:445, y:170, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
+  { id:'hordaland', name:'Hordaland',     x:378, y:300, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'vestfold',  name:'Vestfold',      x:470, y:420, owner:'player',    type:'norse',     garrison:12, settlement:1, income:12, food:6,  loot:30,  lootMax:50,  def:1.10 },
+  // --- Sverige ---
+  { id:'uppland',   name:'Uppland',       x:618, y:325, owner:'bjornsson', type:'norse',     garrison:11, settlement:1, income:12, food:6,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'gotaland',  name:'Götaland',      x:558, y:470, owner:'bjornsson', type:'norse',     garrison:7,  settlement:0, income:10, food:6,  loot:35,  lootMax:50,  def:1.05 },
+  { id:'skane',     name:'Skåne',         x:548, y:560, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:11, food:7,  loot:40,  lootMax:55,  def:1.05 },
+  { id:'gotland',   name:'Gotland',       x:690, y:470, owner:'neutral',   type:'island',    garrison:5,  settlement:0, income:13, food:3,  loot:80,  lootMax:110, def:1.00 },
+  // --- Danmark ---
+  { id:'jylland',   name:'Jylland',       x:430, y:560, owner:'ravnsson',  type:'norse',     garrison:8,  settlement:0, income:11, food:7,  loot:35,  lootMax:55,  def:1.05 },
+  { id:'sjaelland', name:'Sjælland',      x:520, y:585, owner:'ravnsson',  type:'norse',     garrison:11, settlement:1, income:12, food:6,  loot:35,  lootMax:55,  def:1.10 },
+  // --- Brittiska öarna ---
+  { id:'orkney',     name:'Orkneyöarna',  x:250, y:285, owner:'neutral',   type:'island',    garrison:4,  settlement:0, income:8,  food:3,  loot:60,  lootMax:80,  def:1.00 },
+  { id:'northumbria',name:'Northumbria',  x:222, y:455, owner:'christian', type:'christian', garrison:10, settlement:1, income:15, food:8,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne!
+  { id:'mercia',     name:'Mercia',       x:198, y:560, owner:'christian', type:'christian', garrison:13, settlement:1, income:16, food:9,  loot:160, lootMax:180, def:1.20 },
+  { id:'eastanglia', name:'East Anglia',  x:288, y:585, owner:'christian', type:'christian', garrison:9,  settlement:0, income:14, food:8,  loot:170, lootMax:190, def:1.10 },
+  { id:'wessex',     name:'Wessex',       x:188, y:662, owner:'christian', type:'christian', garrison:16, settlement:2, income:18, food:10, loot:200, lootMax:220, def:1.30 },
+  { id:'dublin',     name:'Dublin',       x:92,  y:520, owner:'christian', type:'christian', garrison:8,  settlement:1, income:13, food:6,  loot:150, lootMax:170, def:1.10 },
+  // --- Kontinenten ---
+  { id:'frisia',     name:'Frisia',       x:430, y:702, owner:'christian', type:'christian', garrison:9,  settlement:0, income:14, food:8,  loot:140, lootMax:160, def:1.10 },
+  { id:'saxony',     name:'Sachsen',      x:540, y:742, owner:'christian', type:'christian', garrison:14, settlement:1, income:15, food:9,  loot:150, lootMax:170, def:1.20 },
+  { id:'frankia',    name:'Frankerriket', x:300, y:762, owner:'christian', type:'christian', garrison:18, settlement:2, income:20, food:11, loot:230, lootMax:250, def:1.35 },
+];
+
+// [a, b, sea?] — sjövägar (dash) låter långskeppen slå till över vatten
+const EDGES = [
+  ['trondelag','hordaland',false],
+  ['hordaland','vestfold',false],
+  ['trondelag','uppland',false],
+  ['vestfold','gotaland',false],
+  ['uppland','gotaland',false],
+  ['gotaland','skane',false],
+  ['uppland','gotland',true],
+  ['gotland','gotaland',true],
+  ['skane','gotland',true],
+  ['skane','sjaelland',true],
+  ['gotaland','jylland',true],
+  ['jylland','sjaelland',true],
+  ['jylland','frisia',false],
+  ['hordaland','orkney',true],
+  ['trondelag','orkney',true],
+  ['vestfold','northumbria',true],
+  ['orkney','northumbria',true],
+  ['northumbria','mercia',false],
+  ['mercia','eastanglia',false],
+  ['mercia','wessex',false],
+  ['eastanglia','wessex',false],
+  ['northumbria','dublin',true],
+  ['dublin','mercia',true],
+  ['dublin','wessex',true],
+  ['wessex','frankia',true],
+  ['eastanglia','frisia',true],
+  ['frisia','saxony',false],
+  ['frisia','frankia',false],
+  ['frankia','saxony',false],
+  ['sjaelland','eastanglia',true],
+  ['jylland','northumbria',true],
+];
+
+// stiliserade landmassor (världskoordinater) som ritas bakom noderna
+const LANDMASSES = [
+  // Skandinaviska halvön
+  [[430,110],[510,120],[580,180],[660,290],[722,420],[660,520],[600,600],[545,615],[500,560],[470,470],[410,380],[372,270],[388,170]],
+  // Jylland
+  [[395,520],[475,520],[505,580],[470,635],[405,615],[378,560]],
+  // Sjælland
+  [[493,560],[562,560],[567,608],[503,618]],
+  // Gotland
+  [[665,445],[717,455],[717,500],[668,505]],
+  // Storbritannien
+  [[150,400],[300,410],[322,520],[300,612],[235,702],[160,700],[120,600],[112,480]],
+  // Irland
+  [[42,460],[140,465],[156,556],[92,596],[38,540]],
+  // Orkney
+  [[224,255],[286,260],[286,312],[226,316]],
+  // Kontinenten
+  [[232,668],[470,655],[600,665],[672,760],[600,862],[330,866],[224,802],[200,720]],
+];
+// ============================================================
+//  JARL — spelmotor: tillstånd, ekonomi, strid, turer, AI
+// ============================================================
+
+const Engine = (function () {
+  let adj = {};            // id -> [{id, sea}]
+  let state = null;
+
+  const rng = () => Math.random();
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function buildAdjacency() {
+    adj = {};
+    PROVINCES.forEach(p => { adj[p.id] = []; });
+    EDGES.forEach(([a, b, sea]) => {
+      adj[a].push({ id: b, sea });
+      adj[b].push({ id: a, sea });
+    });
+  }
+
+  function init() {
+    buildAdjacency();
+
+    const provinces = {};
+    PROVINCES.forEach(p => {
+      provinces[p.id] = Object.assign({}, p, { acted: false, recruited: 0 });
+    });
+
+    const factions = {};
+    FACTIONS.forEach(f => {
+      factions[f.id] = Object.assign({}, f, { silver: 0, food: 0, renown: 0 });
+    });
+    factions.player.silver = 120;   factions.player.food = 30;
+    factions.ravnsson.silver = 90;  factions.ravnsson.food = 24;
+    factions.bjornsson.silver = 90; factions.bjornsson.food = 24;
+    factions.christian.silver = 220; factions.christian.food = 70;
+
+    state = {
+      turn: 1,
+      provinces, factions,
+      selected: null,
+      log: [],
+      over: false, won: false,
+      lastBattle: null,
+    };
+    pushLog('☩ År 793. Långskeppen ligger redo. Led Ulfssons ätt till ära!', 'system');
+    return state;
+  }
+
+  // ---- frågor ----
+  const prov = id => state.provinces[id];
+  const fac = id => state.factions[id];
+  const neighbors = id => adj[id] || [];
+  const isAdjacent = (a, b) => neighbors(a).some(n => n.id === b);
+  const provincesOf = fid => Object.values(state.provinces).filter(p => p.owner === fid);
+  const countOf = fid => provincesOf(fid).length;
+  const warriorsOf = fid => provincesOf(fid).reduce((a, p) => a + p.garrison, 0);
+  const defMult = p => p.def + p.settlement * 0.18;
+  const recruitCap = p => (p.settlement + 1) * CONFIG.RECRUIT_BATCH;
+  const buildCost = p => CONFIG.BUILD_BASE_COST * (p.settlement + 1);
+  const effectiveDefense = p => Math.round(p.garrison * defMult(p));
+
+  function pushLog(text, kind) {
+    state.log.unshift({ text, kind: kind || 'info', turn: state.turn });
+    if (state.log.length > 80) state.log.pop();
+  }
+
+  // ---- strid ----
+  // Båda sidor lider förluster i proportion till motståndarens slagkraft.
+  function battle(atk, def, dmult) {
+    const ar = atk * (0.75 + rng() * 0.5);
+    const dr = def * dmult * (0.75 + rng() * 0.5);
+    const tot = (ar + dr) || 1;
+    let atkLoss = Math.round(atk * (dr / tot) * 0.85);
+    let defLoss = Math.round(def * (ar / tot) * 0.95);
+    atkLoss = clamp(atkLoss, 0, atk);
+    defLoss = clamp(defLoss, 0, def);
+    const win = ar >= dr;
+    return { atkSurv: atk - atkLoss, defSurv: def - defLoss, atkLoss, defLoss, win };
+  }
+
+  // ---- spelarens / AI:s handlingar ----
+  function doInvade(srcId, tgtId, send) {
+    const s = prov(srcId), t = prov(tgtId);
+    send = clamp(send, 1, s.garrison);
+    s.garrison -= send;
+    s.acted = true;
+    const res = battle(send, t.garrison, defMult(t));
+
+    if (res.win && res.atkSurv > 0) {
+      const wasChristian = t.type === 'christian';
+      t.owner = s.owner;
+      t.garrison = res.atkSurv;
+      t.acted = true;                       // nylandsatt trupp kan ej agera direkt
+      const ren = wasChristian ? 45 : 20;
+      fac(s.owner).renown += ren;
+      state.lastBattle = { kind: 'invade', win: true, src: srcId, tgt: tgtId, res, ren };
+      if (s.owner === 'player')
+        pushLog(`⚔️ ${t.name} erövrat! ${res.atkLoss} stupade, ${res.atkSurv} håller landet. +${ren} ära.`, 'good');
+    } else {
+      s.garrison += res.atkSurv;            // överlevarna seglar hem
+      t.garrison = res.defSurv;
+      state.lastBattle = { kind: 'invade', win: false, src: srcId, tgt: tgtId, res, ren: 0 };
+      if (s.owner === 'player')
+        pushLog(`🛡️ Anfallet mot ${t.name} slogs tillbaka. ${res.atkLoss} stupade.`, 'bad');
+    }
+    return res;
+  }
+
+  function doRaid(srcId, tgtId, send) {
+    const s = prov(srcId), t = prov(tgtId);
+    send = clamp(send, 1, s.garrison);
+    s.garrison -= send;
+    s.acted = true;
+    const res = battle(send, t.garrison, defMult(t));
+    t.garrison = res.defSurv;
+
+    let stolen = 0, ren = 0;
+    if (res.atkSurv > 0) {
+      const frac = res.win ? 0.7 : 0.3;
+      stolen = Math.min(t.loot, Math.round(t.loot * frac));
+      t.loot -= stolen;
+      fac(s.owner).silver += stolen;
+      ren = Math.round(stolen / 9) + (res.win ? 6 : 2);
+      fac(s.owner).renown += ren;
+    }
+    s.garrison += res.atkSurv;              // långskeppen återvänder
+    state.lastBattle = { kind: 'raid', win: res.win, src: srcId, tgt: tgtId, res, stolen, ren };
+    if (s.owner === 'player')
+      pushLog(`🔥 Raid mot ${t.name}: ${stolen} silver plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
+    return res;
+  }
+
+  function doMarch(srcId, tgtId, send) {
+    const s = prov(srcId), t = prov(tgtId);
+    send = clamp(send, 1, s.garrison);
+    s.garrison -= send; t.garrison += send; s.acted = true;
+    if (s.owner === 'player') pushLog(`→ ${send} krigare marscherade till ${t.name}.`, 'info');
+  }
+
+  function doRecruit(provId) {
+    const p = prov(provId), f = fac(p.owner);
+    if (p.recruited >= recruitCap(p)) return { ok: false, msg: 'Rekryteringsgränsen nådd denna tur.' };
+    if (f.silver < CONFIG.RECRUIT_SILVER) return { ok: false, msg: 'För lite silver.' };
+    if (f.food < CONFIG.RECRUIT_FOOD) return { ok: false, msg: 'För lite mat.' };
+    f.silver -= CONFIG.RECRUIT_SILVER; f.food -= CONFIG.RECRUIT_FOOD;
+    p.garrison += CONFIG.RECRUIT_BATCH; p.recruited += CONFIG.RECRUIT_BATCH;
+    return { ok: true };
+  }
+
+  function doBuild(provId) {
+    const p = prov(provId), f = fac(p.owner);
+    if (p.settlement >= CONFIG.MAX_SETTLEMENT) return { ok: false, msg: 'Redan högsta nivå.' };
+    const cost = buildCost(p);
+    if (f.silver < cost) return { ok: false, msg: `Behöver ${cost} silver.` };
+    f.silver -= cost; p.settlement += 1; f.renown += 10;
+    if (p.owner === 'player') pushLog(`🏗️ ${p.name} uppgraderat till nivå ${p.settlement}. +10 ära.`, 'good');
+    return { ok: true };
+  }
+
+  // ---- runda / ekonomi ----
+  function collectIncome(fid) {
+    const f = fac(fid);
+    let silver = 0, food = 0;
+    provincesOf(fid).forEach(p => {
+      silver += p.income + p.settlement * CONFIG.SETTLEMENT_INCOME;
+      food += p.food;
+    });
+    const upkeep = Math.floor(warriorsOf(fid) / 10); // 1 mat per 10 krigare
+    f.silver += silver;
+    f.food = Math.max(0, f.food + food - upkeep);
+  }
+
+  function regenLoot() {
+    Object.values(state.provinces).forEach(p => {
+      const regen = Math.max(2, Math.round(p.lootMax * 0.08));
+      p.loot = Math.min(p.lootMax, p.loot + regen);
+    });
+  }
+
+  // ---- AI ----
+  function aiTurn(fid) {
+    const f = fac(fid);
+    const mine = provincesOf(fid);
+    if (mine.length === 0) return;
+    const isChristian = f.kind === 'christian';
+
+    // 1) rekrytera på frontlinjeprovinser
+    mine.forEach(p => {
+      const frontier = neighbors(p.id).some(n => prov(n.id).owner !== fid);
+      if (!frontier) return;
+      let guard = 0;
+      const maxBatches = isChristian ? 2 : 1;
+      while (guard++ < maxBatches &&
+             f.silver >= CONFIG.RECRUIT_SILVER && f.food >= CONFIG.RECRUIT_FOOD &&
+             p.recruited < recruitCap(p)) {
+        doRecruit(p.id);
+      }
+    });
+
+    if (isChristian) {
+      // defensiv: återtar förlorad mark men expanderar aldrig bortom utgångsläget
+      let acts = 0;
+      mine.forEach(p => {
+        if (acts >= 1 || countOf(fid) >= 9 || p.acted || p.garrison < 16) return;
+        const t = neighbors(p.id).map(n => prov(n.id))
+          .find(t => t.owner !== fid && t.type !== 'christian' &&
+                     p.garrison > t.garrison * defMult(t) * 2.2);
+        if (t) {
+          const before = t.owner;
+          doInvade(p.id, t.id, p.garrison - 6);
+          if (before === 'player' && t.owner === fid) pushLog(`☩ ${f.name} återtog ${t.name} från dig!`, 'bad');
+          acts++;
+        }
+      });
+      return;
+    }
+
+    // vikinga-AI: expandera & raida — men lämna alltid försvar hemma
+    let acts = 0;
+    const ordered = mine.slice().sort((a, b) => b.garrison - a.garrison);
+    ordered.forEach(p => {
+      if (acts >= 2 || p.acted || p.garrison < 6) return;
+      const keep = Math.ceil(p.garrison * 0.4);      // håll 40 % kvar som garnison
+      const send = p.garrison - keep;
+      if (send < 4) return;
+      const opts = neighbors(p.id).map(n => prov(n.id)).filter(t => t.owner !== fid);
+      if (opts.length === 0) return;
+
+      let best = null, bestScore = -1e9;
+      opts.forEach(t => {
+        const winnable = send > t.garrison * defMult(t) * 1.4;
+        const score = (winnable ? 100 : 0) + t.loot * 0.2 - t.garrison * defMult(t);
+        if (score > bestScore) { bestScore = score; best = t; }
+      });
+      if (!best) return;
+
+      if (send > best.garrison * defMult(best) * 1.4) {
+        const before = best.owner;
+        doInvade(p.id, best.id, send);
+        if (before === 'player' && best.owner === fid) pushLog(`⚔️ ${f.name} erövrade ${best.name} från dig!`, 'bad');
+        acts++;
+      } else if (best.loot > 50) {
+        doRaid(p.id, best.id, send);
+        acts++;
+      }
+    });
+  }
+
+  function checkEnd() {
+    const pCount = countOf('player');
+    const pRen = fac('player').renown;
+    if (pCount === 0) { state.over = true; state.won = false; pushLog('☠️ Din ätt har fallit. Sagan är slut.', 'bad'); return; }
+    if (pRen >= CONFIG.RENOWN_TO_WIN || pCount >= CONFIG.PROVINCES_TO_WIN) {
+      state.over = true; state.won = true; pushLog('👑 Din ätt härskar över Norden! Seger!', 'good'); return;
+    }
+    ['ravnsson', 'bjornsson'].forEach(fid => {
+      if (state.over) return;
+      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) {
+        state.over = true; state.won = false;
+        pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad');
+      }
+    });
+  }
+
+  function endPlayerTurn() {
+    if (state.over) return;
+    state.selected = null;
+    ['bjornsson', 'ravnsson', 'christian'].forEach(aiTurn);
+    ['player', 'bjornsson', 'ravnsson', 'christian'].forEach(collectIncome);
+    regenLoot();
+    Object.values(state.provinces).forEach(p => { p.acted = false; p.recruited = 0; });
+    state.turn += 1;
+    checkEnd();
+  }
+
+  return {
+    init,
+    get state() { return state; },
+    prov, fac, neighbors, isAdjacent, provincesOf, countOf, warriorsOf,
+    defMult, recruitCap, buildCost, effectiveDefense,
+    doInvade, doRaid, doMarch, doRecruit, doBuild,
+    endPlayerTurn, pushLog,
+  };
+})();
+// ============================================================
+//  JARL — kartrendering på canvas
+// ============================================================
+
+const Render = (function () {
+  let canvas, ctx, dpr = 1;
+  let scale = 1, ox = 0, oy = 0;
+  let cssW = 0, cssH = 0;
+
+  function attach(c) {
+    canvas = c;
+    ctx = c.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+  }
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    const r = canvas.getBoundingClientRect();
+    cssW = r.width; cssH = r.height;
+    if (cssW === 0 || cssH === 0) return;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    scale = Math.min(cssW / CONFIG.WORLD_W, cssH / CONFIG.WORLD_H);
+    ox = (cssW - CONFIG.WORLD_W * scale) / 2;
+    oy = (cssH - CONFIG.WORLD_H * scale) / 2;
+  }
+
+  const w2s = (x, y) => ({ x: x * scale + ox, y: y * scale + oy });
+  const s2w = (x, y) => ({ x: (x - ox) / scale, y: (y - oy) / scale });
+
+  function pickProvince(sx, sy) {
+    const wp = s2w(sx, sy);
+    let best = null, bd = 1e9;
+    Object.values(Engine.state.provinces).forEach(p => {
+      const d = Math.hypot(p.x - wp.x, p.y - wp.y);
+      if (d < bd) { bd = d; best = p; }
+    });
+    return (best && bd <= CONFIG.HIT_R) ? best : null;
+  }
+
+  // vilka grannar är giltiga mål för den valda (spelarägda, ej agerade) provinsen
+  function validTargets(selId) {
+    const res = {};
+    if (!selId) return res;
+    const p = Engine.prov(selId);
+    if (!p || p.owner !== 'player' || p.acted || p.garrison <= 0) return res;
+    Engine.neighbors(selId).forEach(n => {
+      res[n.id] = (Engine.prov(n.id).owner === 'player') ? 'friend' : 'enemy';
+    });
+    return res;
+  }
+
+  function draw(now) {
+    if (!ctx || cssW === 0) return;
+    const t = (now || 0) / 1000;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const g = ctx.createLinearGradient(0, 0, 0, cssH);
+    g.addColorStop(0, '#173543');
+    g.addColorStop(1, '#0d2229');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    drawLandmasses();
+    drawEdges();
+    drawNodes(t);
+  }
+
+  function drawLandmasses() {
+    ctx.save();
+    ctx.fillStyle = '#3f4a37';
+    ctx.strokeStyle = 'rgba(18,26,16,0.55)';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    LANDMASSES.forEach(poly => {
+      ctx.beginPath();
+      poly.forEach((pt, i) => {
+        const s = w2s(pt[0], pt[1]);
+        i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function drawEdges() {
+    EDGES.forEach(([a, b, sea]) => {
+      const pa = Engine.prov(a), pb = Engine.prov(b);
+      const sa = w2s(pa.x, pa.y), sb = w2s(pb.x, pb.y);
+      ctx.save();
+      ctx.lineWidth = sea ? 1.5 : 2.5;
+      ctx.strokeStyle = sea ? 'rgba(180,212,228,0.28)' : 'rgba(126,146,112,0.55)';
+      if (sea) ctx.setLineDash([6, 7]);
+      ctx.beginPath();
+      ctx.moveTo(sa.x, sa.y);
+      ctx.lineTo(sb.x, sb.y);
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  function drawNodes(t) {
+    const sel = Engine.state.selected;
+    const targets = validTargets(sel);
+    const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    const r = CONFIG.NODE_R * scale;
+    const TAU = Math.PI * 2;
+
+    Object.values(Engine.state.provinces).forEach(p => {
+      const s = w2s(p.x, p.y);
+      const f = Engine.fac(p.owner);
+
+      // mål-glöd
+      if (targets[p.id]) {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 6 + pulse * 4, 0, TAU);
+        ctx.fillStyle = targets[p.id] === 'friend'
+          ? `rgba(120,220,120,${0.18 + pulse * 0.20})`
+          : `rgba(255,120,90,${0.20 + pulse * 0.22})`;
+        ctx.fill();
+      }
+      // markerad ring
+      if (sel === p.id) {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 5 + pulse * 3, 0, TAU);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = `rgba(255,255,255,${0.55 + pulse * 0.4})`;
+        ctx.stroke();
+      }
+
+      // nodkropp
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, TAU);
+      ctx.fillStyle = f.color;
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = p.acted && p.owner === 'player' ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)';
+      ctx.stroke();
+      if (p.acted && p.owner === 'player') {
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, TAU); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // garnison
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(r * 0.95)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(p.garrison), s.x, s.y);
+
+      // bebyggelse-pricks ovanför
+      for (let i = 0; i < p.settlement; i++) {
+        ctx.beginPath();
+        ctx.arc(s.x - (p.settlement - 1) * 5 + i * 10, s.y - r - 7, 3, 0, TAU);
+        ctx.fillStyle = '#f4d35e';
+        ctx.fill();
+      }
+
+      // kors för kristna riken (raid-mål)
+      if (p.type === 'christian') {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = `${Math.round(r * 0.8)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✝', s.x + r * 0.85, s.y - r * 0.75);
+      }
+      // myntglimt vid rikt rovbyte
+      if (p.loot >= 80) {
+        ctx.font = `${Math.round(r * 0.7)}px serif`;
+        ctx.fillText('🪙', s.x - r * 0.85, s.y - r * 0.75);
+      }
+
+      // namnetikett
+      ctx.font = `600 ${Math.max(10, Math.round(12 * Math.min(1, scale / 0.42)))}px system-ui, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeText(p.name, s.x, s.y + r + 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.fillText(p.name, s.x, s.y + r + 4);
+    });
+  }
+
+  return { attach, resize, draw, pickProvince, validTargets };
+})();
+// ============================================================
+//  JARL — HUD, paneler, inmatning, overlays
+// ============================================================
+
+const UI = (function () {
+  let el = {};          // cachade DOM-element
+  let pending = null;   // { src, tgt, kind('friend'|'enemy') }
+
+  function $(id) { return document.getElementById(id); }
+
+  function build() {
+    el = {
+      hud: $('hud'),
+      panel: $('panel'),
+      log: $('log'),
+      sheet: $('sheet'),
+      overlay: $('overlay'),
+      endTurn: $('endTurnBtn'),
+    };
+    el.endTurn.addEventListener('click', onEndTurn);
+
+    const canvas = $('map');
+    canvas.addEventListener('pointerdown', e => {
+      const r = canvas.getBoundingClientRect();
+      onTap(e.clientX - r.left, e.clientY - r.top);
+    });
+
+    showIntro();
+  }
+
+  // ---------- inmatning på kartan ----------
+  function onTap(sx, sy) {
+    if (Engine.state.over) return;
+    const picked = Render.pickProvince(sx, sy);
+    if (!picked) { Engine.state.selected = null; refresh(); return; }
+
+    const cur = Engine.state.selected;
+    const targets = Render.validTargets(cur);
+    if (cur && cur !== picked.id && targets[picked.id]) {
+      openSheet(cur, picked.id, targets[picked.id]);
+      return;
+    }
+    Engine.state.selected = picked.id;
+    closeSheet();
+    refresh();
+  }
+
+  // ---------- HUD ----------
+  function renderHUD() {
+    const f = Engine.fac('player');
+    const provinces = Engine.countOf('player');
+    const chips = [
+      ['🗓️', 'Tur', Engine.state.turn],
+      ['⚑', 'Land', `${provinces}/${CONFIG.PROVINCES_TO_WIN}`],
+      ['👑', 'Ära', `${f.renown}/${CONFIG.RENOWN_TO_WIN}`],
+      ['🪙', 'Silver', f.silver],
+      ['🌾', 'Mat', f.food],
+      ['⚔️', 'Krigare', Engine.warriorsOf('player')],
+    ];
+    el.hud.innerHTML = chips.map(([ic, lab, val]) =>
+      `<div class="chip"><span class="ic">${ic}</span><span class="lab">${lab}</span><span class="val">${val}</span></div>`
+    ).join('');
+  }
+
+  // ---------- nederpanel ----------
+  function renderPanel() {
+    const sel = Engine.state.selected;
+    if (!sel) {
+      el.panel.innerHTML = `<div class="hint">⚓ Tryck på en <b>röd</b> provins (din ätt) för att välja den — tryck sedan på en granne för att raida, erövra eller flytta.</div>`;
+      return;
+    }
+    const p = Engine.prov(sel);
+    const owner = Engine.fac(p.owner);
+    const mine = p.owner === 'player';
+
+    const stats = [
+      ['⚔️', p.garrison, 'krigare'],
+      ['🏰', `nivå ${p.settlement}`, 'bebyggelse'],
+      ['🛡️', Engine.effectiveDefense(p), 'försvar'],
+      ['🪙', p.income + p.settlement * CONFIG.SETTLEMENT_INCOME, 'inkomst'],
+      ['🌾', p.food, 'mat'],
+      ['💰', p.loot, 'rovbyte'],
+    ];
+    const statsHtml = stats.map(([ic, v, lab]) =>
+      `<div class="stat"><span>${ic}</span><b>${v}</b><i>${lab}</i></div>`).join('');
+
+    let actions = '';
+    if (mine) {
+      const f = Engine.fac('player');
+      const canRecruit = p.recruited < Engine.recruitCap(p) && f.silver >= CONFIG.RECRUIT_SILVER && f.food >= CONFIG.RECRUIT_FOOD;
+      const cost = Engine.buildCost(p);
+      const canBuild = p.settlement < CONFIG.MAX_SETTLEMENT && f.silver >= cost;
+      actions =
+        `<div class="actions">
+           <button class="act" data-a="recruit" ${canRecruit ? '' : 'disabled'}>
+             ⚒️ Rekrytera +${CONFIG.RECRUIT_BATCH}<small>${CONFIG.RECRUIT_SILVER}🪙 ${CONFIG.RECRUIT_FOOD}🌾</small></button>
+           <button class="act" data-a="build" ${canBuild ? '' : 'disabled'}>
+             ${p.settlement < CONFIG.MAX_SETTLEMENT ? `🏗️ Bygg nivå ${p.settlement + 1}<small>${cost}🪙</small>` : '🏰 Max nivå'}</button>
+         </div>
+         <div class="hint">${p.acted ? '⏳ Denna provins har redan fört krig denna tur.' : '➡️ Tryck på en lysande granne: <b style="color:#ff8a76">röd = anfall</b>, <b style="color:#8fdc8f">grön = flytta hit</b>.'}</div>`;
+    } else {
+      actions = `<div class="hint">Tillhör <b style="color:${owner.color}">${owner.name}</b>. Markera en av dina egna provinser intill för att anfalla.</div>`;
+    }
+
+    el.panel.innerHTML =
+      `<div class="ptitle">
+         <span class="dot" style="background:${owner.color}"></span>
+         <b>${p.name}</b>
+         <span class="ownr">${owner.name}${p.type === 'christian' ? ' ✝' : ''}</span>
+       </div>
+       <div class="stats">${statsHtml}</div>
+       ${actions}`;
+
+    el.panel.querySelectorAll('.act').forEach(b =>
+      b.addEventListener('click', () => onPanelAction(b.dataset.a, sel)));
+  }
+
+  function onPanelAction(a, provId) {
+    const res = a === 'recruit' ? Engine.doRecruit(provId) : Engine.doBuild(provId);
+    if (res && !res.ok) toast(res.msg, 'bad');
+    refresh();
+  }
+
+  // ---------- actionsheet (raid / erövra / marschera) ----------
+  function openSheet(srcId, tgtId, kind) {
+    pending = { src: srcId, tgt: tgtId, kind };
+    const s = Engine.prov(srcId), t = Engine.prov(tgtId);
+    const max = s.garrison;
+    const owner = Engine.fac(t.owner);
+
+    const friend = kind === 'friend';
+    const title = friend
+      ? `→ Flytta till ${t.name}`
+      : `⚔️ Mål: ${t.name}`;
+
+    const targetInfo = friend
+      ? `<div class="sinfo">${t.name} har ${t.garrison} krigare (din ätt).</div>`
+      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name}
+           &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b>
+           &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b></div>`;
+
+    const btns = friend
+      ? `<button class="big" data-do="march">→ Marschera hit</button>`
+      : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button>
+         <button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
+
+    el.sheet.innerHTML =
+      `<div class="sheet-card">
+         <div class="stitle">${title}</div>
+         ${targetInfo}
+         <div class="slider">
+           <label>Skicka krigare: <b id="sval">${max}</b> / ${max}</label>
+           <input type="range" id="srange" min="1" max="${max}" value="${max}">
+           <div class="odds" id="odds"></div>
+         </div>
+         <div class="sbtns">${btns}</div>
+         <button class="cancel" data-do="cancel">Avbryt</button>
+       </div>`;
+    el.sheet.classList.remove('hidden');
+
+    const range = $('srange'), valEl = $('sval'), odds = $('odds');
+    function updateOdds() {
+      const send = +range.value;
+      valEl.textContent = send;
+      if (!friend) {
+        const def = Engine.effectiveDefense(t);
+        const ratio = def === 0 ? 99 : send / def;
+        const verdict = ratio >= 1.6 ? '🟢 stark övermakt' : ratio >= 1.0 ? '🟡 jämn kamp' : '🔴 underläge';
+        odds.innerHTML = `⚔️ ${send} mot 🛡️ ${def} &nbsp; ${verdict}`;
+      } else odds.textContent = '';
+    }
+    range.addEventListener('input', updateOdds);
+    updateOdds();
+
+    el.sheet.querySelectorAll('[data-do]').forEach(b =>
+      b.addEventListener('click', () => doSheet(b.dataset.do, +range.value)));
+  }
+
+  function doSheet(action, send) {
+    const pn = pending;
+    closeSheet();
+    if (!pn || action === 'cancel') { refresh(); return; }
+    if (action === 'march') Engine.doMarch(pn.src, pn.tgt, send);
+    if (action === 'raid') Engine.doRaid(pn.src, pn.tgt, send);
+    if (action === 'invade') Engine.doInvade(pn.src, pn.tgt, send);
+    Engine.state.selected = null;
+    refresh();
+  }
+
+  function closeSheet() {
+    pending = null;
+    el.sheet.classList.add('hidden');
+    el.sheet.innerHTML = '';
+  }
+
+  // ---------- händelselogg (flytande) ----------
+  function renderLog() {
+    const recent = Engine.state.log.slice(0, 4);
+    el.log.innerHTML = recent.map(e =>
+      `<div class="logline ${e.kind}">${e.text}</div>`).join('');
+  }
+
+  let toastTimer = null;
+  function toast(text, kind) {
+    Engine.pushLog(text, kind || 'info');
+    renderLog();
+  }
+
+  // ---------- tur ----------
+  function onEndTurn() {
+    if (Engine.state.over) return;
+    closeSheet();
+    el.endTurn.disabled = true;
+    el.endTurn.textContent = '⚔️ Fienderna drar ut...';
+    setTimeout(() => {
+      Engine.endPlayerTurn();
+      el.endTurn.disabled = false;
+      el.endTurn.innerHTML = '⛵ Avsluta tur';
+      refresh();
+      if (Engine.state.over) showGameOver();
+    }, 280);
+  }
+
+  // ---------- overlays ----------
+  function showIntro() {
+    el.overlay.innerHTML =
+      `<div class="ov-card">
+         <h1>JARL</h1>
+         <p class="sub">Vikingatåg över Norden · 793 e.Kr</p>
+         <ul>
+           <li>🔴 Du leder <b>Ulfssons ätt</b> i Vestfold.</li>
+           <li>⚒️ <b>Rekrytera</b> krigare och <b>bygg</b> upp dina bygder.</li>
+           <li>🔥 <b>Raida</b> kristna kloster (✝) för silver och ära.</li>
+           <li>⚔️ <b>Erövra</b> grannar — landväg eller över hav (streckad linje).</li>
+           <li>👑 Vinn genom <b>${CONFIG.RENOWN_TO_WIN} ära</b> eller <b>${CONFIG.PROVINCES_TO_WIN} provinser</b>.</li>
+         </ul>
+         <button class="big invade" id="startBtn">⛵ Sätt segel</button>
+       </div>`;
+    el.overlay.classList.remove('hidden');
+    $('startBtn').addEventListener('click', () => {
+      el.overlay.classList.add('hidden');
+      el.overlay.innerHTML = '';
+    });
+  }
+
+  function showGameOver() {
+    const won = Engine.state.won;
+    el.overlay.innerHTML =
+      `<div class="ov-card">
+         <h1>${won ? '👑 SEGER' : '☠️ NEDERLAG'}</h1>
+         <p class="sub">${won ? 'Skalderna sjunger om Ulfssons ätt i evig tid.' : 'Din saga är till ända.'}</p>
+         <div class="ov-stats">
+           Tur ${Engine.state.turn} · 👑 ${Engine.fac('player').renown} ära · ⚑ ${Engine.countOf('player')} provinser
+         </div>
+         <button class="big invade" id="againBtn">↻ Spela igen</button>
+       </div>`;
+    el.overlay.classList.remove('hidden');
+    $('againBtn').addEventListener('click', () => {
+      el.overlay.classList.add('hidden');
+      el.overlay.innerHTML = '';
+      Engine.init();
+      Render.resize();
+      refresh();
+    });
+  }
+
+  function refresh() {
+    renderHUD();
+    renderPanel();
+    renderLog();
+  }
+
+  return { build, onTap, refresh };
+})();
+(function(){function start(){Engine.init();Render.attach(document.getElementById('map'));UI.build();UI.refresh();setTimeout(function(){Render.resize();},60);(function loop(n){Render.draw(n);requestAnimationFrame(loop);})();}if(document.getElementById('app'))start();else document.addEventListener('DOMContentLoaded',start);})();
+</script>
+</body>
+</html>

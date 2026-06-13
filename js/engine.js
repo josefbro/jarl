@@ -92,7 +92,7 @@ const Engine = (function () {
       t.owner = s.owner;
       t.garrison = res.atkSurv;
       t.acted = true;                       // nylandsatt trupp kan ej agera direkt
-      const ren = wasChristian ? 60 : 30;
+      const ren = wasChristian ? 45 : 20;
       fac(s.owner).renown += ren;
       state.lastBattle = { kind: 'invade', win: true, src: srcId, tgt: tgtId, res, ren };
       if (s.owner === 'player')
@@ -121,7 +121,7 @@ const Engine = (function () {
       stolen = Math.min(t.loot, Math.round(t.loot * frac));
       t.loot -= stolen;
       fac(s.owner).silver += stolen;
-      ren = Math.round(stolen / 7) + (res.win ? 8 : 3);
+      ren = Math.round(stolen / 9) + (res.win ? 6 : 2);
       fac(s.owner).renown += ren;
     }
     s.garrison += res.atkSurv;              // långskeppen återvänder
@@ -199,10 +199,10 @@ const Engine = (function () {
     });
 
     if (isChristian) {
-      // defensiv: återta endast en angränsande provins om kraftigt överlägsen
+      // defensiv: återtar förlorad mark men expanderar aldrig bortom utgångsläget
       let acts = 0;
       mine.forEach(p => {
-        if (acts >= 1 || p.acted || p.garrison < 16) return;
+        if (acts >= 1 || countOf(fid) >= 9 || p.acted || p.garrison < 16) return;
         const t = neighbors(p.id).map(n => prov(n.id))
           .find(t => t.owner !== fid && t.type !== 'christian' &&
                      p.garrison > t.garrison * defMult(t) * 2.2);
@@ -216,30 +216,32 @@ const Engine = (function () {
       return;
     }
 
-    // vikinga-AI: expandera & raida
+    // vikinga-AI: expandera & raida — men lämna alltid försvar hemma
     let acts = 0;
     const ordered = mine.slice().sort((a, b) => b.garrison - a.garrison);
     ordered.forEach(p => {
-      if (acts >= 3 || p.acted || p.garrison < 4) return;
+      if (acts >= 2 || p.acted || p.garrison < 6) return;
+      const keep = Math.ceil(p.garrison * 0.4);      // håll 40 % kvar som garnison
+      const send = p.garrison - keep;
+      if (send < 4) return;
       const opts = neighbors(p.id).map(n => prov(n.id)).filter(t => t.owner !== fid);
       if (opts.length === 0) return;
 
       let best = null, bestScore = -1e9;
       opts.forEach(t => {
-        const winnable = p.garrison > t.garrison * defMult(t) * 1.25;
+        const winnable = send > t.garrison * defMult(t) * 1.4;
         const score = (winnable ? 100 : 0) + t.loot * 0.2 - t.garrison * defMult(t);
         if (score > bestScore) { bestScore = score; best = t; }
       });
       if (!best) return;
 
-      const winnable = p.garrison > best.garrison * defMult(best) * 1.25;
-      if (winnable && p.garrison >= best.garrison + 4) {
+      if (send > best.garrison * defMult(best) * 1.4) {
         const before = best.owner;
-        doInvade(p.id, best.id, p.garrison);
+        doInvade(p.id, best.id, send);
         if (before === 'player' && best.owner === fid) pushLog(`⚔️ ${f.name} erövrade ${best.name} från dig!`, 'bad');
         acts++;
-      } else if (best.loot > 50 && p.garrison >= 5) {
-        doRaid(p.id, best.id, p.garrison);
+      } else if (best.loot > 50) {
+        doRaid(p.id, best.id, send);
         acts++;
       }
     });
