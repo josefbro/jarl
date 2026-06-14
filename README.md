@@ -23,24 +23,32 @@ python3 -m http.server 8000   # öppna http://localhost:8000
 `index.html` (separata filer) går också att öppna direkt — allt är vanilla JS,
 inga moduler/CORS-krav. `standalone.html` byggs om från källfilerna med `build.sh`.
 
-## Hur man spelar (MVP)
+## Hur man spelar
 
-Du leder **Ulfssons ätt** från Vestfold i Norge.
+Du leder **Ulfssons ätt** från Norge (Trøndelag, Hordaland, Vestfold).
 
-1. **Tryck på din (röda) provins** för att markera den.
+1. **Tryck på din (röda) region** för att markera den.
 2. **Tryck på en lysande granne** — röd glöd = fientligt/fritt land, grön = eget land.
-   - 🔥 **Raida** — slå till, plundra silver & ära, segla hem (du behåller inte landet).
-   - ⚔️ **Erövra** — besegra garnisonen och ta provinsen permanent.
+   - 🔥 **Raida** — slå till, plundra silver, mat & ära, segla hem (du behåller inte landet).
+   - ⚔️ **Erövra** — besegra garnisonen och ta regionen permanent.
    - → **Marschera** — flytta krigare till eget angränsande land.
    - Reglaget väljer hur många krigare du skickar; oddsen visas (⚔️ mot 🛡️).
-3. **⚒️ Rekrytera** krigare och **🏗️ bygg** upp bygder (mer inkomst + försvar) i panelen.
-4. **⛵ Avsluta tur** — rivaliserande vikingaätter (Ravnsson, Björnsson) och de
-   kristna rikena agerar, sedan kommer inkomsten in.
+3. **⚒️ Rekrytera** krigare och **🏗️ bygg** upp städer i panelen.
+4. **⛵ Avsluta tur** — rivalätterna (Ravnsson, Björnsson) och de kristna rikena agerar,
+   sedan kommer inkomst och mat in.
 
-**Sjövägar** (streckade linjer) låter långskeppen slå till över hav — t.ex. från
-Vestfold rakt mot Northumbria (Lindisfarne ✝, det rikaste klostret på kartan).
+**🌾 Försörjning:** din **hird** (⚔️ X/Y i HUD:en) begränsas hårt av matproduktionen —
+du kan inte hålla fler krigare än du kan föda. Svält och övertak ger desertering. Vill du
+ha en större här måste du **bygga städer** eller **erövra mer mark**.
 
-**Vinn** genom **1000 ära** eller **12 provinser**. Förlorar du all mark är sagan slut.
+**🏗️ Stadsbygge i 6 nivåer:** Torp → By → Köping → Stad → Borg → Fästning. Varje nivå ger
+mer inkomst, mat (= försörjning), försvar och rekryteringstakt — staden ritas större.
+
+**Karta:** realistiska kustlinjer (Norge med fjordar, Britannien, Irland, Jylland …),
+resten av Europa visas grått som kontext. **Sjövägar** (Skagerrak, Öresund, Nordsjön …)
+låter långskeppen slå till över hav — t.ex. Vestfold → Northumbria (Lindisfarne ✝ 793).
+
+**Vinn** genom **1200 ära** eller **12 regioner**. Förlorar du all mark är sagan slut.
 
 ## Arkitektur
 
@@ -54,13 +62,19 @@ js/ui.js          HUD, paneler, actionsheet, overlays, inmatning
 js/main.js        uppstart + renderingsloop
 ```
 
-## Roadmap — de andra lagren
+## Klart hittills
 
-MVP:n ovan är **RISK/Civ-kärnan** (karta + raid + erövra). Planerade lager:
+- **RISK/Civ-kärna:** regionkarta (Voronoi-celler med gränser), raid, erövra, marschera.
+- **Realistisk geografi:** riktiga kustlinjer + resten av Europa grått som kontext;
+  geografiskt vettig angreppslogik (verifierad sammanhängande graf).
+- **Civ-ekonomi:** mat-försörjningstak som begränsar arméstorlek (ingen passiv mega-armé),
+  6 byggnivåer Torp→Fästning, AI som investerar i städer och agerar.
+
+## Roadmap — kvar att bygga
 
 - **Crusader Kings** — din jarl & ätt: arv, åldrande, allianser, giftermål, intriger.
 - **Total War** — zooma in till taktiska slag när härar möts (i stället för auto-strid).
-- **Civ 6** — teknologiträd (skeppsbyggnad, smide, kristnande/asatro), under.
-- **Shogun** — fler ätter, diplomati, vasaller och förräderi.
-- Karta: pan/zoom, fler provinser, säsonger/vinter, stormar till havs.
+- **Civ 6** — teknologiträd (skeppsbyggnad, smide, kristnande/asatro).
+- **Shogun** — diplomati, vasaller och förräderi.
+- Karta: pan/zoom, säsonger/vinter, stormar till havs.
 - Ljud, partikel-VFX för raider, sparfunktion (localStorage), PWA/Capacitor-paketering.
