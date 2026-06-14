@@ -56,7 +56,12 @@ const Engine = (function () {
   const foodIncome = fid => provincesOf(fid).reduce((a, p) => a + provinceFood(p), 0);
   const supplyCap = fid => CONFIG.BASE_SUPPLY + foodIncome(fid);
   const upkeep = fid => warriorsOf(fid) * CONFIG.FOOD_PER_WARRIOR;
-  const navalDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const navalDist = (a, b) => {   // haversine, km
+    const R = 6371, D = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * D, dLng = (b.lng - a.lng) * D;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * D) * Math.cos(b.lat * D) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  };
 
   function pushLog(text, kind) { state.log.unshift({ text, kind: kind || 'info', turn: state.turn }); if (state.log.length > 80) state.log.pop(); }
 
@@ -209,7 +214,7 @@ const Engine = (function () {
       let best = null, bs = 0;
       Object.values(state.provinces).forEach(t => {
         if (t.owner === fid || !t.coastal || isAdjacent(p.id, t.id)) return;
-        if (navalDist(p, t) > CONFIG.NAVAL_RAID_RANGE || t.loot < 70) return;
+        if (navalDist(p, t) > CONFIG.NAVAL_RAID_KM || t.loot < 70) return;
         const score = t.loot - effectiveDefense(t) * 2.5;
         if (send > effectiveDefense(t) * 0.7 && score > bs) { bs = score; best = t; }
       });

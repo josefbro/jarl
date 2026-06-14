@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bygger standalone.html — hela spelet (CSS + alla JS) i en enda fil.
+# Bygger standalone.html — hela spelet (CSS + geografi + alla JS) i en enda fil.
 # Kör: ./build.sh   (från repo-roten)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -30,9 +30,12 @@ cat <<'HTML'
 <div id="overlay" class="hidden"></div>
 <script>
 HTML
-cat js/config.js js/engine.js js/render.js js/ui.js
+printf 'const EUROPE_GEOJSON='
+cat assets/europe.geojson
+printf ';\n'
+cat js/config.js js/geo.js js/engine.js js/render.js js/ui.js
 cat <<'HTML'
-(function(){function start(){Engine.init();Render.attach(document.getElementById('map'));UI.build();UI.refresh();setTimeout(function(){Render.resize();},60);(function loop(n){Render.draw(n);requestAnimationFrame(loop);})();}if(document.getElementById('app'))start();else document.addEventListener('DOMContentLoaded',start);})();
+(function(){GEO.setData(EUROPE_GEOJSON);Engine.init();Render.attach(document.getElementById('map'));UI.build();UI.refresh();setTimeout(function(){Render.resize();},60);setTimeout(function(){Render.resize();},300);(function loop(n){Render.draw(n);requestAnimationFrame(loop);})();})();
 </script>
 </body>
 </html>
