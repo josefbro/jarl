@@ -7,8 +7,8 @@
 
 const Render = (function () {
   let canvas, ctx, dpr = 1;
-  let scale = 1, ox = 0, oy = 0, cssW = 0, cssH = 0;
-  let landPath = null;
+  let scale = 1, scale0 = 1, zoom = null, cx = null, cy = null, cssW = 0, cssH = 0;
+  let landPath = null, landDirty = true;
 
   function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function rnd(seed) { let t = (seed + 0x6D2B79F5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
@@ -19,12 +19,18 @@ const Render = (function () {
     dpr = window.devicePixelRatio || 1;
     const r = canvas.getBoundingClientRect(); cssW = r.width; cssH = r.height; if (cssW === 0 || cssH === 0) return;
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
-    scale = Math.min(cssW / GEO.WORLD_W, cssH / GEO.WORLD_H);
-    ox = (cssW - GEO.WORLD_W * scale) / 2; oy = (cssH - GEO.WORLD_H * scale) / 2;
-    buildLandPath();
+    scale0 = Math.min(cssW / GEO.WORLD_W, cssH / GEO.WORLD_H);
+    if (zoom === null) { const v = CONFIG.DEFAULT_VIEW; zoom = v.zoom; const c = GEO.project(v.lng, v.lat); cx = c.x; cy = c.y; }
+    scale = scale0 * zoom; landDirty = true;
   }
-  const w2s = (x, y) => ({ x: x * scale + ox, y: y * scale + oy });
-  const s2w = (x, y) => ({ x: (x - ox) / scale, y: (y - oy) / scale });
+  const w2s = (x, y) => ({ x: (x - cx) * scale + cssW / 2, y: (y - cy) * scale + cssH / 2 });
+  const s2w = (x, y) => ({ x: (x - cssW / 2) / scale + cx, y: (y - cssH / 2) / scale + cy });
+
+  // ---------- zoom & panorering ----------
+  function clampCenter() { cx = Math.max(0, Math.min(GEO.WORLD_W, cx)); cy = Math.max(0, Math.min(GEO.WORLD_H, cy)); }
+  function zoomAt(factor, sx, sy) { const b = s2w(sx, sy); zoom = Math.max(CONFIG.ZOOM_MIN, Math.min(CONFIG.ZOOM_MAX, zoom * factor)); scale = scale0 * zoom; const a = s2w(sx, sy); cx += b.x - a.x; cy += b.y - a.y; clampCenter(); landDirty = true; }
+  function zoomStep(factor) { zoomAt(factor, cssW / 2, cssH / 2); }
+  function panScreen(dx, dy) { cx -= dx / scale; cy -= dy / scale; clampCenter(); landDirty = true; }
 
   function buildLandPath() {
     landPath = new Path2D();
@@ -58,7 +64,8 @@ const Render = (function () {
 
   // ---------- huvudritning ----------
   function draw(now) {
-    if (!ctx || cssW === 0 || !landPath) return;
+    if (!ctx || cssW === 0 || zoom === null) return;
+    if (landDirty || !landPath) { buildLandPath(); landDirty = false; }
     const t = (now || 0) / 1000;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
@@ -175,5 +182,5 @@ const Render = (function () {
     ctx.fillStyle = 'rgba(255,250,238,0.96)'; ctx.fillText(p.name, s.x, yy);
   }
 
-  return { attach, resize, draw, pickProvince, validTargets };
+  return { attach, resize, draw, pickProvince, validTargets, zoomStep, zoomAt, panScreen, getZoom: () => zoom };
 })();

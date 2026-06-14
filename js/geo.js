@@ -15,6 +15,7 @@ const GEO = (function () {
   const projW = mxE - mxW, projH = myN - myS;
   const WORLD_W = CONFIG.WORLD_W;
   const WORLD_H = Math.round(WORLD_W * projH / projW);
+  const R = CONFIG.REGION_RADIUS_DEG * WORLD_W / (B.e - B.w);   // regionradie i världsenheter
 
   function project(lng, lat) {
     return {
@@ -76,7 +77,6 @@ const GEO = (function () {
 
   function buildRegions() {
     const seeds = PROVINCES.map(p => ({ id: p.id, x: seedW[p.id].x, y: seedW[p.id].y }));
-    const R = CONFIG.REGION_RADIUS;
     const pad = 200;
     seeds.forEach(s => {
       let cell = [[-pad, -pad], [WORLD_W + pad, -pad], [WORLD_W + pad, WORLD_H + pad], [-pad, WORLD_H + pad]];
@@ -119,7 +119,7 @@ const GEO = (function () {
     land: () => landWorld,
     regionAt(x, y) {
       if (!onLand(x, y)) return null;
-      let best = null, bd = CONFIG.REGION_RADIUS * CONFIG.REGION_RADIUS;
+      let best = null, bd = R * R;
       PROVINCES.forEach(p => { const s = seedW[p.id]; const d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y); if (d < bd) { bd = d; best = p.id; } });
       return best;
     },

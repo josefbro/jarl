@@ -11,9 +11,34 @@ const UI = (function () {
   function build() {
     el = { hud: $('hud'), panel: $('panel'), log: $('log'), sheet: $('sheet'), overlay: $('overlay'), endTurn: $('endTurnBtn') };
     el.endTurn.addEventListener('click', onEndTurn);
-    const canvas = $('map');
-    canvas.addEventListener('pointerdown', e => { const r = canvas.getBoundingClientRect(); onTap(e.clientX - r.left, e.clientY - r.top); });
+    setupMap($('map'));
     showIntro();
+  }
+
+  // tryck = välj region, dra = panorera, nyp/mushjul = zooma
+  function setupMap(canvas) {
+    const ptrs = new Map(); let last = null, moved = false, pinch = 0;
+    const rel = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const pinchInfo = () => { const v = [...ptrs.values()]; return { d: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y), x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2 }; };
+    canvas.addEventListener('pointerdown', e => { if (canvas.setPointerCapture) try { canvas.setPointerCapture(e.pointerId); } catch (x) {} const p = rel(e); ptrs.set(e.pointerId, p); last = p; moved = false; if (ptrs.size === 2) pinch = pinchInfo().d; });
+    canvas.addEventListener('pointermove', e => {
+      if (!ptrs.has(e.pointerId)) return; const p = rel(e); ptrs.set(e.pointerId, p);
+      if (ptrs.size >= 2) { const m = pinchInfo(); if (pinch > 0) Render.zoomAt(m.d / pinch, m.x, m.y); pinch = m.d; moved = true; return; }
+      if (last) { const dx = p.x - last.x, dy = p.y - last.y; if (Math.abs(dx) + Math.abs(dy) > 2) moved = true; if (moved) Render.panScreen(dx, dy); }
+      last = p;
+    });
+    const up = e => {
+      if (!ptrs.has(e.pointerId)) return; const p = ptrs.get(e.pointerId); ptrs.delete(e.pointerId);
+      if (ptrs.size === 0) { if (!moved) onTap(p.x, p.y); last = null; }
+      else { last = [...ptrs.values()][0]; pinch = 0; moved = true; }
+    };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('wheel', e => { e.preventDefault(); const p = rel(e); Render.zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y); }, { passive: false });
+    const zc = document.createElement('div'); zc.id = 'zoomctl';
+    zc.innerHTML = '<button data-z="in" aria-label="Zooma in">+</button><button data-z="out" aria-label="Zooma ut">−</button>';
+    (canvas.parentElement || canvas).appendChild(zc);
+    zc.querySelectorAll('button').forEach(b => b.addEventListener('click', () => Render.zoomStep(b.dataset.z === 'in' ? 1.3 : 1 / 1.3)));
   }
 
   function onTap(sx, sy) {

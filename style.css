@@ -53,6 +53,20 @@ html, body {
 #mapwrap { position: relative; flex: 1 1 auto; min-height: 0; }
 #map { display: block; width: 100%; height: 100%; touch-action: none; }
 
+#zoomctl {
+  position: absolute; left: 10px; top: 10px;
+  display: flex; flex-direction: column; gap: 6px; z-index: 5;
+}
+#zoomctl button {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 1.5px solid rgba(244,211,94,0.45);
+  background: rgba(27,20,16,0.82); color: var(--gold);
+  font-size: 22px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+}
+#zoomctl button:active { transform: translateY(1px); background: rgba(40,30,22,0.9); }
+
 #log {
   position: absolute; left: 8px; right: 8px; top: 8px;
   display: flex; flex-direction: column; gap: 4px;

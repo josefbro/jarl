@@ -8,9 +8,11 @@
 const CONFIG = {
   WORLD_W: 1000,           // logisk världsbredd (höjd härleds ur projektionen)
 
-  // projektionsfönster (lng/lat) som ritas ut — ramar in NV-Europa
-  RENDER_BOUNDS: { w: -12, e: 22, s: 47, n: 69 },
-  REGION_RADIUS: 235,      // hur långt en regions tint når från sin stad (världsenh.)
+  // projektionsfönster (lng/lat) — ramar in Island i väster till Finland/Baltikum i öster
+  RENDER_BOUNDS: { w: -26, e: 33, s: 46, n: 70 },
+  REGION_RADIUS_DEG: 2.8,  // hur långt en regions tint når från sin stad (longitud-grader)
+  DEFAULT_VIEW: { lng: 6, lat: 56, zoom: 1.9 },  // startvy: inzoomad på NV-Europa
+  ZOOM_MIN: 0.9, ZOOM_MAX: 6,
 
   RECRUIT_BATCH: 5,
   RECRUIT_SILVER: 25,
@@ -23,8 +25,8 @@ const CONFIG = {
 
   NAVAL_RAID_KM: 900,      // långskeppens raid-räckvidd (verkliga km) — når Lindisfarne
 
-  RENOWN_TO_WIN: 1200,
-  PROVINCES_TO_WIN: 14,
+  RENOWN_TO_WIN: 1400,
+  PROVINCES_TO_WIN: 16,
 };
 
 // kind: player | viking | christian (separata kungariken) | neutral
@@ -67,6 +69,14 @@ const PROVINCES = [
   { id:'sjaelland',   name:'Sjælland',   land:'denmark', lng:11.9, lat:55.5, owner:'ravnsson', type:'norse', coastal:true, garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
   // --- Gotland ---
   { id:'gotland',     name:'Gotland',    land:'gotland', lng:18.5, lat:57.5, owner:'neutral',   type:'island', coastal:true, garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
+  // --- Island ---
+  { id:'island',      name:'Island',     land:'island',  lng:-19.0, lat:64.9, owner:'neutral',  type:'norse', coastal:true, garrison:4,  settlement:0, income:9,  food:4,  loot:50,  lootMax:70,  def:1.10 },
+  // --- Finland ---
+  { id:'finland',     name:'Suomi',      land:'finland', lng:24.0, lat:61.4, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.10 },
+  { id:'karelen',     name:'Karelen',    land:'finland', lng:29.0, lat:62.3, owner:'neutral',   type:'norse', coastal:false, garrison:5,  settlement:0, income:8,  food:5,  loot:40,  lootMax:55,  def:1.15 },
+  // --- Baltikum ---
+  { id:'estland',     name:'Estland',    land:'baltic',  lng:25.5, lat:58.8, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:9,  food:5,  loot:55,  lootMax:75,  def:1.10 },
+  { id:'kurland',     name:'Kurland',    land:'baltic',  lng:24.0, lat:56.9, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:9,  food:5,  loot:50,  lootMax:70,  def:1.10 },
   // --- Brittiska öarna ---
   { id:'orkney',      name:'Orkneyöarna', land:'britain', lng:-3.0, lat:59.0, owner:'neutral',   type:'island', coastal:true, garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
   { id:'pictland',    name:'Piktland',   land:'britain', lng:-4.2, lat:57.3, owner:'northumbria', type:'christian', coastal:true,  garrison:7,  settlement:0, income:10, food:5,  loot:90,  lootMax:110, def:1.10 },
@@ -97,14 +107,17 @@ const EDGES = [
   ['uppland','gotland',true],['gotaland','gotland',true],['ostergotland','gotland',true],['skane','sjaelland',true],['jylland','sjaelland',true],['gotaland','jylland',true],['vestfold','jylland',true],['skane','jylland',true],
   ['hordaland','orkney',true],['orkney','pictland',true],['orkney','northumbria',true],['vestfold','northumbria',true],
   ['dublin','gwynedd',true],['munster','wessex',true],['eastanglia','frisia',true],['kent','neustria',true],['wessex','neustria',true],
+  // Nordatlanten (Island) + Östersjön (Finland/Baltikum)
+  ['island','orkney',true],['island','hordaland',true],['island','trondelag',true],
+  ['finland','uppland',true],['finland','gotland',true],['finland','karelen',false],['finland','estland',true],
+  ['karelen','estland',true],['estland','kurland',false],['estland','gotland',true],['kurland','gotland',true],
 ];
 
 // Svaga kontext-etiketter för de grå (icke-spelbara) länderna runtom.
 const CONTEXT_LABELS = [
-  { name:'Island',        lng:-19, lat:65 },
-  { name:'Hispania',      lng:-5,  lat:41 },
-  { name:'Frankerriket',  lng:2.5, lat:46.5 },
-  { name:'Italia',        lng:12,  lat:43 },
-  { name:'Gardarike',     lng:34,  lat:58 },
-  { name:'Magyarerna',    lng:20,  lat:47 },
+  { name:'Hispania',    lng:-5,  lat:41   },
+  { name:'Aquitanien',  lng:0,   lat:45   },
+  { name:'Italia',      lng:12,  lat:43   },
+  { name:'Gardarike',   lng:31,  lat:59   },
+  { name:'Magyarerna',  lng:20,  lat:47.5 },
 ];

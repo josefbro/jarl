@@ -62,6 +62,20 @@ html, body {
 #mapwrap { position: relative; flex: 1 1 auto; min-height: 0; }
 #map { display: block; width: 100%; height: 100%; touch-action: none; }
 
+#zoomctl {
+  position: absolute; left: 10px; top: 10px;
+  display: flex; flex-direction: column; gap: 6px; z-index: 5;
+}
+#zoomctl button {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 1.5px solid rgba(244,211,94,0.45);
+  background: rgba(27,20,16,0.82); color: var(--gold);
+  font-size: 22px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+}
+#zoomctl button:active { transform: translateY(1px); background: rgba(40,30,22,0.9); }
+
 #log {
   position: absolute; left: 8px; right: 8px; top: 8px;
   display: flex; flex-direction: column; gap: 4px;
@@ -213,9 +227,11 @@ const EUROPE_GEOJSON={"type":"FeatureCollection","bbox":[-25.0,34.0,42.0,72.0],"
 const CONFIG = {
   WORLD_W: 1000,           // logisk världsbredd (höjd härleds ur projektionen)
 
-  // projektionsfönster (lng/lat) som ritas ut — ramar in NV-Europa
-  RENDER_BOUNDS: { w: -12, e: 22, s: 47, n: 69 },
-  REGION_RADIUS: 235,      // hur långt en regions tint når från sin stad (världsenh.)
+  // projektionsfönster (lng/lat) — ramar in Island i väster till Finland/Baltikum i öster
+  RENDER_BOUNDS: { w: -26, e: 33, s: 46, n: 70 },
+  REGION_RADIUS_DEG: 2.8,  // hur långt en regions tint når från sin stad (longitud-grader)
+  DEFAULT_VIEW: { lng: 6, lat: 56, zoom: 1.9 },  // startvy: inzoomad på NV-Europa
+  ZOOM_MIN: 0.9, ZOOM_MAX: 6,
 
   RECRUIT_BATCH: 5,
   RECRUIT_SILVER: 25,
@@ -228,8 +244,8 @@ const CONFIG = {
 
   NAVAL_RAID_KM: 900,      // långskeppens raid-räckvidd (verkliga km) — når Lindisfarne
 
-  RENOWN_TO_WIN: 1200,
-  PROVINCES_TO_WIN: 14,
+  RENOWN_TO_WIN: 1400,
+  PROVINCES_TO_WIN: 16,
 };
 
 // kind: player | viking | christian (separata kungariken) | neutral
@@ -272,6 +288,14 @@ const PROVINCES = [
   { id:'sjaelland',   name:'Sjælland',   land:'denmark', lng:11.9, lat:55.5, owner:'ravnsson', type:'norse', coastal:true, garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
   // --- Gotland ---
   { id:'gotland',     name:'Gotland',    land:'gotland', lng:18.5, lat:57.5, owner:'neutral',   type:'island', coastal:true, garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
+  // --- Island ---
+  { id:'island',      name:'Island',     land:'island',  lng:-19.0, lat:64.9, owner:'neutral',  type:'norse', coastal:true, garrison:4,  settlement:0, income:9,  food:4,  loot:50,  lootMax:70,  def:1.10 },
+  // --- Finland ---
+  { id:'finland',     name:'Suomi',      land:'finland', lng:24.0, lat:61.4, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.10 },
+  { id:'karelen',     name:'Karelen',    land:'finland', lng:29.0, lat:62.3, owner:'neutral',   type:'norse', coastal:false, garrison:5,  settlement:0, income:8,  food:5,  loot:40,  lootMax:55,  def:1.15 },
+  // --- Baltikum ---
+  { id:'estland',     name:'Estland',    land:'baltic',  lng:25.5, lat:58.8, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:9,  food:5,  loot:55,  lootMax:75,  def:1.10 },
+  { id:'kurland',     name:'Kurland',    land:'baltic',  lng:24.0, lat:56.9, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:9,  food:5,  loot:50,  lootMax:70,  def:1.10 },
   // --- Brittiska öarna ---
   { id:'orkney',      name:'Orkneyöarna', land:'britain', lng:-3.0, lat:59.0, owner:'neutral',   type:'island', coastal:true, garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
   { id:'pictland',    name:'Piktland',   land:'britain', lng:-4.2, lat:57.3, owner:'northumbria', type:'christian', coastal:true,  garrison:7,  settlement:0, income:10, food:5,  loot:90,  lootMax:110, def:1.10 },
@@ -302,16 +326,19 @@ const EDGES = [
   ['uppland','gotland',true],['gotaland','gotland',true],['ostergotland','gotland',true],['skane','sjaelland',true],['jylland','sjaelland',true],['gotaland','jylland',true],['vestfold','jylland',true],['skane','jylland',true],
   ['hordaland','orkney',true],['orkney','pictland',true],['orkney','northumbria',true],['vestfold','northumbria',true],
   ['dublin','gwynedd',true],['munster','wessex',true],['eastanglia','frisia',true],['kent','neustria',true],['wessex','neustria',true],
+  // Nordatlanten (Island) + Östersjön (Finland/Baltikum)
+  ['island','orkney',true],['island','hordaland',true],['island','trondelag',true],
+  ['finland','uppland',true],['finland','gotland',true],['finland','karelen',false],['finland','estland',true],
+  ['karelen','estland',true],['estland','kurland',false],['estland','gotland',true],['kurland','gotland',true],
 ];
 
 // Svaga kontext-etiketter för de grå (icke-spelbara) länderna runtom.
 const CONTEXT_LABELS = [
-  { name:'Island',        lng:-19, lat:65 },
-  { name:'Hispania',      lng:-5,  lat:41 },
-  { name:'Frankerriket',  lng:2.5, lat:46.5 },
-  { name:'Italia',        lng:12,  lat:43 },
-  { name:'Gardarike',     lng:34,  lat:58 },
-  { name:'Magyarerna',    lng:20,  lat:47 },
+  { name:'Hispania',    lng:-5,  lat:41   },
+  { name:'Aquitanien',  lng:0,   lat:45   },
+  { name:'Italia',      lng:12,  lat:43   },
+  { name:'Gardarike',   lng:31,  lat:59   },
+  { name:'Magyarerna',  lng:20,  lat:47.5 },
 ];
 // ============================================================
 //  JARL — geo: Mercator-projektion, GeoJSON-parser, regioner
@@ -330,6 +357,7 @@ const GEO = (function () {
   const projW = mxE - mxW, projH = myN - myS;
   const WORLD_W = CONFIG.WORLD_W;
   const WORLD_H = Math.round(WORLD_W * projH / projW);
+  const R = CONFIG.REGION_RADIUS_DEG * WORLD_W / (B.e - B.w);   // regionradie i världsenheter
 
   function project(lng, lat) {
     return {
@@ -391,7 +419,6 @@ const GEO = (function () {
 
   function buildRegions() {
     const seeds = PROVINCES.map(p => ({ id: p.id, x: seedW[p.id].x, y: seedW[p.id].y }));
-    const R = CONFIG.REGION_RADIUS;
     const pad = 200;
     seeds.forEach(s => {
       let cell = [[-pad, -pad], [WORLD_W + pad, -pad], [WORLD_W + pad, WORLD_H + pad], [-pad, WORLD_H + pad]];
@@ -434,7 +461,7 @@ const GEO = (function () {
     land: () => landWorld,
     regionAt(x, y) {
       if (!onLand(x, y)) return null;
-      let best = null, bd = CONFIG.REGION_RADIUS * CONFIG.REGION_RADIUS;
+      let best = null, bd = R * R;
       PROVINCES.forEach(p => { const s = seedW[p.id]; const d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y); if (d < bd) { bd = d; best = p.id; } });
       return best;
     },
@@ -707,8 +734,8 @@ const Engine = (function () {
 
 const Render = (function () {
   let canvas, ctx, dpr = 1;
-  let scale = 1, ox = 0, oy = 0, cssW = 0, cssH = 0;
-  let landPath = null;
+  let scale = 1, scale0 = 1, zoom = null, cx = null, cy = null, cssW = 0, cssH = 0;
+  let landPath = null, landDirty = true;
 
   function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function rnd(seed) { let t = (seed + 0x6D2B79F5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
@@ -719,12 +746,18 @@ const Render = (function () {
     dpr = window.devicePixelRatio || 1;
     const r = canvas.getBoundingClientRect(); cssW = r.width; cssH = r.height; if (cssW === 0 || cssH === 0) return;
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
-    scale = Math.min(cssW / GEO.WORLD_W, cssH / GEO.WORLD_H);
-    ox = (cssW - GEO.WORLD_W * scale) / 2; oy = (cssH - GEO.WORLD_H * scale) / 2;
-    buildLandPath();
+    scale0 = Math.min(cssW / GEO.WORLD_W, cssH / GEO.WORLD_H);
+    if (zoom === null) { const v = CONFIG.DEFAULT_VIEW; zoom = v.zoom; const c = GEO.project(v.lng, v.lat); cx = c.x; cy = c.y; }
+    scale = scale0 * zoom; landDirty = true;
   }
-  const w2s = (x, y) => ({ x: x * scale + ox, y: y * scale + oy });
-  const s2w = (x, y) => ({ x: (x - ox) / scale, y: (y - oy) / scale });
+  const w2s = (x, y) => ({ x: (x - cx) * scale + cssW / 2, y: (y - cy) * scale + cssH / 2 });
+  const s2w = (x, y) => ({ x: (x - cssW / 2) / scale + cx, y: (y - cssH / 2) / scale + cy });
+
+  // ---------- zoom & panorering ----------
+  function clampCenter() { cx = Math.max(0, Math.min(GEO.WORLD_W, cx)); cy = Math.max(0, Math.min(GEO.WORLD_H, cy)); }
+  function zoomAt(factor, sx, sy) { const b = s2w(sx, sy); zoom = Math.max(CONFIG.ZOOM_MIN, Math.min(CONFIG.ZOOM_MAX, zoom * factor)); scale = scale0 * zoom; const a = s2w(sx, sy); cx += b.x - a.x; cy += b.y - a.y; clampCenter(); landDirty = true; }
+  function zoomStep(factor) { zoomAt(factor, cssW / 2, cssH / 2); }
+  function panScreen(dx, dy) { cx -= dx / scale; cy -= dy / scale; clampCenter(); landDirty = true; }
 
   function buildLandPath() {
     landPath = new Path2D();
@@ -758,7 +791,8 @@ const Render = (function () {
 
   // ---------- huvudritning ----------
   function draw(now) {
-    if (!ctx || cssW === 0 || !landPath) return;
+    if (!ctx || cssW === 0 || zoom === null) return;
+    if (landDirty || !landPath) { buildLandPath(); landDirty = false; }
     const t = (now || 0) / 1000;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
@@ -875,7 +909,7 @@ const Render = (function () {
     ctx.fillStyle = 'rgba(255,250,238,0.96)'; ctx.fillText(p.name, s.x, yy);
   }
 
-  return { attach, resize, draw, pickProvince, validTargets };
+  return { attach, resize, draw, pickProvince, validTargets, zoomStep, zoomAt, panScreen, getZoom: () => zoom };
 })();
 // ============================================================
 //  JARL — HUD, paneler, inmatning, overlays
@@ -890,9 +924,34 @@ const UI = (function () {
   function build() {
     el = { hud: $('hud'), panel: $('panel'), log: $('log'), sheet: $('sheet'), overlay: $('overlay'), endTurn: $('endTurnBtn') };
     el.endTurn.addEventListener('click', onEndTurn);
-    const canvas = $('map');
-    canvas.addEventListener('pointerdown', e => { const r = canvas.getBoundingClientRect(); onTap(e.clientX - r.left, e.clientY - r.top); });
+    setupMap($('map'));
     showIntro();
+  }
+
+  // tryck = välj region, dra = panorera, nyp/mushjul = zooma
+  function setupMap(canvas) {
+    const ptrs = new Map(); let last = null, moved = false, pinch = 0;
+    const rel = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const pinchInfo = () => { const v = [...ptrs.values()]; return { d: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y), x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2 }; };
+    canvas.addEventListener('pointerdown', e => { if (canvas.setPointerCapture) try { canvas.setPointerCapture(e.pointerId); } catch (x) {} const p = rel(e); ptrs.set(e.pointerId, p); last = p; moved = false; if (ptrs.size === 2) pinch = pinchInfo().d; });
+    canvas.addEventListener('pointermove', e => {
+      if (!ptrs.has(e.pointerId)) return; const p = rel(e); ptrs.set(e.pointerId, p);
+      if (ptrs.size >= 2) { const m = pinchInfo(); if (pinch > 0) Render.zoomAt(m.d / pinch, m.x, m.y); pinch = m.d; moved = true; return; }
+      if (last) { const dx = p.x - last.x, dy = p.y - last.y; if (Math.abs(dx) + Math.abs(dy) > 2) moved = true; if (moved) Render.panScreen(dx, dy); }
+      last = p;
+    });
+    const up = e => {
+      if (!ptrs.has(e.pointerId)) return; const p = ptrs.get(e.pointerId); ptrs.delete(e.pointerId);
+      if (ptrs.size === 0) { if (!moved) onTap(p.x, p.y); last = null; }
+      else { last = [...ptrs.values()][0]; pinch = 0; moved = true; }
+    };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('wheel', e => { e.preventDefault(); const p = rel(e); Render.zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y); }, { passive: false });
+    const zc = document.createElement('div'); zc.id = 'zoomctl';
+    zc.innerHTML = '<button data-z="in" aria-label="Zooma in">+</button><button data-z="out" aria-label="Zooma ut">−</button>';
+    (canvas.parentElement || canvas).appendChild(zc);
+    zc.querySelectorAll('button').forEach(b => b.addEventListener('click', () => Render.zoomStep(b.dataset.z === 'in' ? 1.3 : 1 / 1.3)));
   }
 
   function onTap(sx, sy) {
