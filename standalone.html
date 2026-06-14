@@ -204,9 +204,9 @@ html, body {
 <script>
 // ============================================================
 //  JARL — config & speldata (vikingatidens norra Europa)
-//  Landmassorna har realistiska kustlinjer (LANDS[*].poly).
-//  Regioner = Voronoi-celler ur städernas frö-punkter (x,y),
-//  klippta mot sin landmassa. Se render.js.
+//  Realistiska kustlinjer (LANDS). Resten av Europa visas grått
+//  som icke-spelbar kontext (CONTEXT_LANDS). Regioner = Voronoi-
+//  celler ur städernas frö-punkter, klippta mot landmassan.
 // ============================================================
 
 const CONFIG = {
@@ -216,9 +216,12 @@ const CONFIG = {
   RECRUIT_BATCH: 5,
   RECRUIT_SILVER: 25,
   RECRUIT_FOOD: 5,
-  SETTLEMENT_INCOME: 4,
-  BUILD_BASE_COST: 60,
-  MAX_SETTLEMENT: 3,
+  MAX_SETTLEMENT: 5,
+
+  // försörjning: arméns storlek begränsas HÅRT av matproduktionen
+  BASE_SUPPLY: 12,        // grund-försörjning per ätt (liten marginal)
+  FOOD_PER_WARRIOR: 1,    // mat/krigare/tur i underhåll
+  OVERCAP_DESERT: 0.5,    // andel av överskottet (över taket) som deserterar/tur
 
   RENOWN_TO_WIN: 1200,
   PROVINCES_TO_WIN: 12,
@@ -233,72 +236,83 @@ const FACTIONS = [
   { id:'neutral',   name:'Fria bygder',    short:'Fri',   color:'#8d8674', kind:'neutral'   },
 ];
 
-// land = landmassa-grupp. (x,y) = stadens läge + Voronoi-frö (geografiskt placerat).
-// type: norse | island | christian (rika raid-mål)
-const PROVINCES = [
-  // --- Skandinaviska halvön (Norge i väster, Sverige i öster) ---
-  { id:'trondelag', name:'Trøndelag',  land:'scandia', x:505, y:215, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
-  { id:'hordaland', name:'Hordaland',  land:'scandia', x:470, y:360, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
-  { id:'vestfold',  name:'Vestfold',   land:'scandia', x:525, y:475, owner:'player',    type:'norse',     garrison:12, settlement:1, income:12, food:6,  loot:30,  lootMax:50,  def:1.10 },
-  { id:'uppland',   name:'Uppland',    land:'scandia', x:650, y:340, owner:'bjornsson', type:'norse',     garrison:11, settlement:1, income:12, food:6,  loot:30,  lootMax:50,  def:1.10 },
-  { id:'gotaland',  name:'Götaland',   land:'scandia', x:600, y:520, owner:'bjornsson', type:'norse',     garrison:7,  settlement:0, income:10, food:6,  loot:35,  lootMax:50,  def:1.05 },
-  { id:'skane',     name:'Skåne',      land:'scandia', x:548, y:575, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:11, food:7,  loot:40,  lootMax:55,  def:1.05 },
-  // --- Danmark: Jylland (halvö av kontinenten) + Själland (ö) ---
-  { id:'jylland',   name:'Jylland',    land:'continent', x:428, y:648, owner:'ravnsson', type:'norse',    garrison:8,  settlement:0, income:11, food:7,  loot:35,  lootMax:55,  def:1.05 },
-  { id:'sjaelland', name:'Sjælland',   land:'zealand',   x:528, y:632, owner:'ravnsson', type:'norse',    garrison:11, settlement:1, income:12, food:6,  loot:35,  lootMax:55,  def:1.10 },
-  // --- Gotland ---
-  { id:'gotland',   name:'Gotland',    land:'gotland', x:756, y:486, owner:'neutral',   type:'island',    garrison:5,  settlement:0, income:13, food:3,  loot:80,  lootMax:110, def:1.00 },
-  // --- Brittiska öarna ---
-  { id:'orkney',     name:'Orkneyöarna', land:'orkney',  x:145, y:92,  owner:'neutral',   type:'island',    garrison:4,  settlement:0, income:8,  food:3,  loot:60,  lootMax:80,  def:1.00 },
-  { id:'northumbria',name:'Northumbria',  land:'britain', x:215, y:330, owner:'christian', type:'christian', garrison:10, settlement:1, income:15, food:8,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne!
-  { id:'mercia',     name:'Mercia',       land:'britain', x:180, y:440, owner:'christian', type:'christian', garrison:13, settlement:1, income:16, food:9,  loot:160, lootMax:180, def:1.20 },
-  { id:'eastanglia', name:'East Anglia',  land:'britain', x:235, y:452, owner:'christian', type:'christian', garrison:9,  settlement:0, income:14, food:8,  loot:170, lootMax:190, def:1.10 },
-  { id:'wessex',     name:'Wessex',       land:'britain', x:190, y:540, owner:'christian', type:'christian', garrison:16, settlement:2, income:18, food:10, loot:200, lootMax:220, def:1.30 },
-  { id:'dublin',     name:'Dublin',       land:'ireland', x:72,  y:432, owner:'christian', type:'christian', garrison:8,  settlement:1, income:13, food:6,  loot:150, lootMax:170, def:1.10 },
-  // --- Kontinenten (Frankerriket i väster, Sachsen i öster) ---
-  { id:'frisia',     name:'Frisia',       land:'continent', x:345, y:822, owner:'christian', type:'christian', garrison:9,  settlement:0, income:14, food:8,  loot:140, lootMax:160, def:1.10 },
-  { id:'saxony',     name:'Sachsen',      land:'continent', x:612, y:828, owner:'christian', type:'christian', garrison:14, settlement:1, income:15, food:9,  loot:150, lootMax:170, def:1.20 },
-  { id:'frankia',    name:'Frankerriket', land:'continent', x:255, y:850, owner:'christian', type:'christian', garrison:18, settlement:2, income:20, food:11, loot:230, lootMax:250, def:1.35 },
+// Bebyggelse-nivåer. cost = silver för att uppgradera TILL nivån.
+// income = silver/tur, food = mat/tur (= försörjning), def = försvarstillägg,
+// recruitCap = krigare rekryterbara per tur i provinsen.
+const TIERS = [
+  { level:0, name:'Torp',     cost:0,   income:0,  food:0,  def:0.00, recruitCap:5  },
+  { level:1, name:'By',       cost:60,  income:4,  food:5,  def:0.18, recruitCap:8  },
+  { level:2, name:'Köping',   cost:130, income:9,  food:10, def:0.40, recruitCap:12 },
+  { level:3, name:'Stad',     cost:230, income:15, food:16, def:0.70, recruitCap:16 },
+  { level:4, name:'Borg',     cost:360, income:24, food:22, def:1.05, recruitCap:22 },
+  { level:5, name:'Fästning', cost:540, income:36, food:30, def:1.45, recruitCap:30 },
 ];
 
-// [a, b, sea?] — sea=true ritas som långskeppsled; land = väg (med bro vid flod)
+// land = landmassa-grupp. (x,y) = stadens läge + Voronoi-frö (geografiskt placerat).
+// income/food = landets bas; TIERS adderas ovanpå efter bebyggelsenivå.
+const PROVINCES = [
+  // --- Skandinaviska halvön (Norge i väster, Sverige i öster) ---
+  { id:'trondelag', name:'Trøndelag',  land:'scandia', x:505, y:215, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
+  { id:'hordaland', name:'Hordaland',  land:'scandia', x:470, y:360, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'vestfold',  name:'Vestfold',   land:'scandia', x:525, y:475, owner:'player',    type:'norse',     garrison:12, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'uppland',   name:'Uppland',    land:'scandia', x:650, y:340, owner:'bjornsson', type:'norse',     garrison:11, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'gotaland',  name:'Götaland',   land:'scandia', x:600, y:520, owner:'bjornsson', type:'norse',     garrison:7,  settlement:0, income:9,  food:6,  loot:35,  lootMax:50,  def:1.05 },
+  { id:'skane',     name:'Skåne',      land:'scandia', x:548, y:575, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:10, food:7,  loot:40,  lootMax:55,  def:1.05 },
+  // --- Danmark: Jylland (halvö av kontinenten) + Själland (ö) ---
+  { id:'jylland',   name:'Jylland',    land:'continent', x:428, y:648, owner:'ravnsson', type:'norse',    garrison:8,  settlement:0, income:10, food:7,  loot:35,  lootMax:55,  def:1.05 },
+  { id:'sjaelland', name:'Sjælland',   land:'zealand',   x:528, y:632, owner:'ravnsson', type:'norse',    garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
+  // --- Gotland ---
+  { id:'gotland',   name:'Gotland',    land:'gotland', x:756, y:486, owner:'neutral',   type:'island',    garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
+  // --- Brittiska öarna ---
+  { id:'orkney',     name:'Orkneyöarna', land:'orkney',  x:145, y:92,  owner:'neutral',   type:'island',    garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
+  { id:'northumbria',name:'Northumbria',  land:'britain', x:215, y:330, owner:'christian', type:'christian', garrison:10, settlement:1, income:13, food:7,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne!
+  { id:'mercia',     name:'Mercia',       land:'britain', x:180, y:440, owner:'christian', type:'christian', garrison:13, settlement:1, income:14, food:9,  loot:160, lootMax:180, def:1.20 },
+  { id:'eastanglia', name:'East Anglia',  land:'britain', x:235, y:452, owner:'christian', type:'christian', garrison:10, settlement:1, income:13, food:8,  loot:170, lootMax:190, def:1.10 },
+  { id:'wessex',     name:'Wessex',       land:'britain', x:190, y:540, owner:'christian', type:'christian', garrison:16, settlement:2, income:14, food:9,  loot:200, lootMax:220, def:1.30 },
+  { id:'dublin',     name:'Dublin',       land:'ireland', x:72,  y:432, owner:'christian', type:'christian', garrison:8,  settlement:1, income:11, food:6,  loot:150, lootMax:170, def:1.10 },
+  // --- Kontinenten (Frankerriket i väster, Sachsen i öster) ---
+  { id:'frisia',     name:'Frisia',       land:'continent', x:345, y:822, owner:'christian', type:'christian', garrison:12, settlement:1, income:13, food:8,  loot:140, lootMax:160, def:1.10 },
+  { id:'saxony',     name:'Sachsen',      land:'continent', x:612, y:828, owner:'christian', type:'christian', garrison:14, settlement:1, income:13, food:9,  loot:150, lootMax:170, def:1.20 },
+  { id:'frankia',    name:'Frankerriket', land:'continent', x:255, y:850, owner:'christian', type:'christian', garrison:18, settlement:2, income:16, food:10, loot:230, lootMax:250, def:1.35 },
+];
+
+// [a, b, sea?] — realistisk angreppslogik (verifierad sammanhängande graf, grad>=2)
+// sea=true => långskeppsled över vatten; false => landgräns med väg
 const EDGES = [
-  ['trondelag','hordaland',false],
-  ['hordaland','vestfold',false],
-  ['trondelag','uppland',false],
-  ['vestfold','gotaland',false],
-  ['uppland','gotaland',false],
-  ['gotaland','skane',false],
-  ['uppland','gotland',true],
-  ['gotland','gotaland',true],
-  ['skane','gotland',true],
-  ['skane','sjaelland',true],
-  ['gotaland','jylland',true],
-  ['jylland','sjaelland',true],
-  ['jylland','frisia',false],
-  ['hordaland','orkney',true],
-  ['trondelag','orkney',true],
-  ['vestfold','northumbria',true],
-  ['orkney','northumbria',true],
+  ['trondelag','hordaland',false],   // norsk västkust
+  ['hordaland','vestfold',false],    // norsk sydkust
+  ['trondelag','uppland',false],     // över fjällryggen
+  ['vestfold','gotaland',false],     // Bohuslän
+  ['uppland','gotaland',false],      // inre Sverige
+  ['gotaland','skane',false],        // sydsvensk landfront
+  ['uppland','gotland',true],        // Roslagen–Gotland (Östersjön)
+  ['gotland','gotaland',true],       // Gotland–östgötakusten
+  ['skane','sjaelland',true],        // Öresund
+  ['gotaland','jylland',true],       // Kattegatt
+  ['jylland','sjaelland',true],      // Stora Bält
+  ['jylland','frisia',false],        // Jyllands rot mot Frisien (land)
+  ['hordaland','orkney',true],       // Nordsjön (kanonisk norsk utfärd)
+  ['vestfold','northumbria',true],   // Lindisfarne-leden 793
+  ['orkney','northumbria',true],     // längs Skottlands ostkust
   ['northumbria','mercia',false],
   ['mercia','eastanglia',false],
   ['mercia','wessex',false],
   ['eastanglia','wessex',false],
-  ['northumbria','dublin',true],
-  ['dublin','mercia',true],
-  ['dublin','wessex',true],
-  ['wessex','frankia',true],
-  ['eastanglia','frisia',true],
+  ['eastanglia','northumbria',false],// Britanniens ostkust (land)
+  ['northumbria','dublin',true],     // runt Skottland till Dublin
+  ['dublin','mercia',true],          // Irländska sjön
+  ['dublin','wessex',true],          // Bristolkanalen
+  ['wessex','frankia',true],         // Engelska kanalen
+  ['eastanglia','frisia',true],      // Nordsjön (frisisk-engelsk axel)
   ['frisia','saxony',false],
-  ['frisia','frankia',false],
+  ['frisia','frankia',false],        // Rhenmynningen
   ['frankia','saxony',false],
-  ['sjaelland','eastanglia',true],
-  ['jylland','northumbria',true],
+  ['vestfold','jylland',true],       // Skagerrak
+  ['skane','jylland',true],          // Kattegatt (dansk kärna)
 ];
 
-// Landmassor med realistiska kustlinjer (världskoord). river = flodbana (valfri).
+// Spelbara landmassor med realistiska kustlinjer (världskoord). river = flodbana.
 const LANDS = {
-  // Skandinaviska halvön: flikig fjordkust i väster (Norge), Sverige i öster
   scandia: {
     poly: [[525,598],[500,565],[508,545],[486,520],[498,500],[472,470],[486,450],[455,420],[470,400],
            [442,366],[458,348],[430,315],[448,300],[432,268],[452,250],[438,212],[460,196],[450,160],
@@ -306,42 +320,46 @@ const LANDS = {
            [710,320],[694,378],[672,430],[648,476],[632,512],[606,548],[578,576],[548,592]],
     river: [[520,170],[560,260],[540,360],[602,440],[600,520]],
   },
-  // Storbritannien: smalt Skottland i norr, East Anglia-buktning i öster, Cornwall i sydväst
   britain: {
     poly: [[138,128],[168,150],[182,210],[206,272],[228,330],[246,388],[266,440],[244,462],[282,486],
-           [298,520],[255,550],[208,562],[160,566],[118,574],[132,520],[120,475],[146,440],[120,398],
+           [298,520],[255,550],[208,562],[160,566],[106,582],[132,520],[120,475],[146,440],[120,398],
            [132,350],[108,300],[126,250],[100,200],[126,165]],
     river: [[180,250],[210,340],[185,430],[214,512]],
   },
-  // Irland
   ireland: {
     poly: [[60,338],[95,352],[112,402],[106,462],[78,512],[44,520],[22,470],[16,402],[30,356]],
   },
-  // Orkneyöarna (norr om Skottland)
   orkney: {
     poly: [[118,70],[168,74],[172,108],[120,112]],
   },
-  // Gotland (Östersjön)
   gotland: {
     poly: [[732,452],[778,460],[780,512],[734,518]],
   },
-  // Själland (dansk ö)
   zealand: {
     poly: [[498,602],[556,598],[572,636],[540,668],[498,656]],
   },
-  // Kontinenten med Jylland-halvön som sticker upp i mitten
   continent: {
     poly: [[428,560],[454,596],[470,656],[472,716],[560,756],[652,772],[742,792],[776,836],[706,886],
            [516,896],[330,892],[206,860],[196,802],[286,772],[366,762],[398,706],[408,648],[412,600]],
     river: [[300,792],[400,822],[500,815],[600,832]],
   },
 };
+
+// Icke-spelbar kontext: resten av Europa, ritas grått (inga provinser/städer).
+const CONTEXT_LANDS = [
+  { label:'Gardarike',                labelPos:[890,250],  poly:[[812,84],[900,98],[968,140],[998,225],[995,330],[966,420],[922,452],[860,430],[820,360],[792,300],[800,180]] },
+  { label:'Austrvegr',                labelPos:[895,556],  poly:[[792,476],[864,486],[940,500],[1000,548],[1000,628],[908,624],[820,610],[792,560],[800,516]] },
+  { label:'Det västfrankiska riket',  labelPos:[372,1002], poly:[[200,916],[330,916],[512,916],[600,945],[558,1012],[470,1078],[360,1092],[250,1062],[185,992]] },
+  { label:'Det östfrankiska riket',   labelPos:[712,1010], poly:[[600,945],[702,916],[776,916],[864,916],[906,986],[856,1086],[716,1126],[600,1092],[558,1012]] },
+  { label:'Alperna & Langobardia',    labelPos:[905,1072], poly:[[864,916],[930,952],[978,1030],[998,1110],[960,1172],[872,1170],[820,1118],[856,1086],[906,986]] },
+  { label:'Al-Andalus',               labelPos:[112,1036], poly:[[10,916],[118,916],[185,992],[250,1062],[210,1140],[110,1172],[18,1150],[6,1028]] },
+];
 // ============================================================
-//  JARL — spelmotor: tillstånd, ekonomi, strid, turer, AI
+//  JARL — spelmotor: tillstånd, ekonomi, försörjning, strid, AI
 // ============================================================
 
 const Engine = (function () {
-  let adj = {};            // id -> [{id, sea}]
+  let adj = {};
   let state = null;
 
   const rng = () => Math.random();
@@ -358,29 +376,15 @@ const Engine = (function () {
 
   function init() {
     buildAdjacency();
-
     const provinces = {};
-    PROVINCES.forEach(p => {
-      provinces[p.id] = Object.assign({}, p, { acted: false, recruited: 0 });
-    });
-
+    PROVINCES.forEach(p => { provinces[p.id] = Object.assign({}, p, { acted: false, recruited: 0 }); });
     const factions = {};
-    FACTIONS.forEach(f => {
-      factions[f.id] = Object.assign({}, f, { silver: 0, food: 0, renown: 0 });
-    });
-    factions.player.silver = 120;   factions.player.food = 30;
-    factions.ravnsson.silver = 90;  factions.ravnsson.food = 24;
-    factions.bjornsson.silver = 90; factions.bjornsson.food = 24;
-    factions.christian.silver = 220; factions.christian.food = 70;
-
-    state = {
-      turn: 1,
-      provinces, factions,
-      selected: null,
-      log: [],
-      over: false, won: false,
-      lastBattle: null,
-    };
+    FACTIONS.forEach(f => { factions[f.id] = Object.assign({}, f, { silver: 0, food: 0, renown: 0 }); });
+    factions.player.silver = 150;   factions.player.food = 55;
+    factions.ravnsson.silver = 90;  factions.ravnsson.food = 30;
+    factions.bjornsson.silver = 90; factions.bjornsson.food = 30;
+    factions.christian.silver = 150; factions.christian.food = 90;
+    state = { turn: 1, provinces, factions, selected: null, log: [], over: false, won: false, lastBattle: null };
     pushLog('☩ År 793. Långskeppen ligger redo. Led Ulfssons ätt till ära!', 'system');
     return state;
   }
@@ -393,10 +397,18 @@ const Engine = (function () {
   const provincesOf = fid => Object.values(state.provinces).filter(p => p.owner === fid);
   const countOf = fid => provincesOf(fid).length;
   const warriorsOf = fid => provincesOf(fid).reduce((a, p) => a + p.garrison, 0);
-  const defMult = p => p.def + p.settlement * 0.18;
-  const recruitCap = p => (p.settlement + 1) * CONFIG.RECRUIT_BATCH;
-  const buildCost = p => CONFIG.BUILD_BASE_COST * (p.settlement + 1);
+
+  const tierOf = p => TIERS[Math.min(p.settlement, TIERS.length - 1)];
+  const defMult = p => p.def + tierOf(p).def;
+  const provinceIncome = p => p.income + tierOf(p).income;
+  const provinceFood = p => p.food + tierOf(p).food;
+  const recruitCap = p => tierOf(p).recruitCap;
+  const buildCost = p => (p.settlement < CONFIG.MAX_SETTLEMENT ? TIERS[p.settlement + 1].cost : Infinity);
   const effectiveDefense = p => Math.round(p.garrison * defMult(p));
+
+  const foodIncome = fid => provincesOf(fid).reduce((a, p) => a + provinceFood(p), 0);
+  const supplyCap = fid => CONFIG.BASE_SUPPLY + foodIncome(fid);
+  const upkeep = fid => warriorsOf(fid) * CONFIG.FOOD_PER_WARRIOR;
 
   function pushLog(text, kind) {
     state.log.unshift({ text, kind: kind || 'info', turn: state.turn });
@@ -404,83 +416,65 @@ const Engine = (function () {
   }
 
   // ---- strid ----
-  // Båda sidor lider förluster i proportion till motståndarens slagkraft.
   function battle(atk, def, dmult) {
     const ar = atk * (0.75 + rng() * 0.5);
     const dr = def * dmult * (0.75 + rng() * 0.5);
     const tot = (ar + dr) || 1;
-    let atkLoss = Math.round(atk * (dr / tot) * 0.85);
-    let defLoss = Math.round(def * (ar / tot) * 0.95);
-    atkLoss = clamp(atkLoss, 0, atk);
-    defLoss = clamp(defLoss, 0, def);
-    const win = ar >= dr;
-    return { atkSurv: atk - atkLoss, defSurv: def - defLoss, atkLoss, defLoss, win };
+    const atkLoss = clamp(Math.round(atk * (dr / tot) * 0.85), 0, atk);
+    const defLoss = clamp(Math.round(def * (ar / tot) * 0.95), 0, def);
+    return { atkSurv: atk - atkLoss, defSurv: def - defLoss, atkLoss, defLoss, win: ar >= dr };
   }
 
-  // ---- spelarens / AI:s handlingar ----
+  // ---- handlingar ----
   function doInvade(srcId, tgtId, send) {
     const s = prov(srcId), t = prov(tgtId);
-    send = clamp(send, 1, s.garrison);
-    s.garrison -= send;
-    s.acted = true;
+    send = clamp(send, 1, s.garrison); s.garrison -= send; s.acted = true;
     const res = battle(send, t.garrison, defMult(t));
-
     if (res.win && res.atkSurv > 0) {
       const wasChristian = t.type === 'christian';
-      t.owner = s.owner;
-      t.garrison = res.atkSurv;
-      t.acted = true;                       // nylandsatt trupp kan ej agera direkt
-      const ren = wasChristian ? 45 : 20;
-      fac(s.owner).renown += ren;
+      t.owner = s.owner; t.garrison = res.atkSurv; t.acted = true;
+      const ren = wasChristian ? 45 : 20; fac(s.owner).renown += ren;
       state.lastBattle = { kind: 'invade', win: true, src: srcId, tgt: tgtId, res, ren };
-      if (s.owner === 'player')
-        pushLog(`⚔️ ${t.name} erövrat! ${res.atkLoss} stupade, ${res.atkSurv} håller landet. +${ren} ära.`, 'good');
+      if (s.owner === 'player') pushLog(`⚔️ ${t.name} erövrat! ${res.atkLoss} stupade, ${res.atkSurv} håller landet. +${ren} ära.`, 'good');
     } else {
-      s.garrison += res.atkSurv;            // överlevarna seglar hem
-      t.garrison = res.defSurv;
+      s.garrison += res.atkSurv; t.garrison = res.defSurv;
       state.lastBattle = { kind: 'invade', win: false, src: srcId, tgt: tgtId, res, ren: 0 };
-      if (s.owner === 'player')
-        pushLog(`🛡️ Anfallet mot ${t.name} slogs tillbaka. ${res.atkLoss} stupade.`, 'bad');
+      if (s.owner === 'player') pushLog(`🛡️ Anfallet mot ${t.name} slogs tillbaka. ${res.atkLoss} stupade.`, 'bad');
     }
     return res;
   }
 
   function doRaid(srcId, tgtId, send) {
     const s = prov(srcId), t = prov(tgtId);
-    send = clamp(send, 1, s.garrison);
-    s.garrison -= send;
-    s.acted = true;
-    const res = battle(send, t.garrison, defMult(t));
-    t.garrison = res.defSurv;
-
-    let stolen = 0, ren = 0;
+    send = clamp(send, 1, s.garrison); s.garrison -= send; s.acted = true;
+    const res = battle(send, t.garrison, defMult(t)); t.garrison = res.defSurv;
+    let stolen = 0, ren = 0, grain = 0;
     if (res.atkSurv > 0) {
-      const frac = res.win ? 0.7 : 0.3;
-      stolen = Math.min(t.loot, Math.round(t.loot * frac));
+      stolen = Math.min(t.loot, Math.round(t.loot * (res.win ? 0.7 : 0.3)));
       t.loot -= stolen;
-      fac(s.owner).silver += stolen;
-      ren = Math.round(stolen / 9) + (res.win ? 6 : 2);
-      fac(s.owner).renown += ren;
+      const f = fac(s.owner);
+      f.silver += stolen;
+      grain = Math.floor(stolen / 8); f.food += grain;     // plundrad spannmål håller hären flytande
+      ren = Math.round(stolen / 9) + (res.win ? 6 : 2); f.renown += ren;
     }
-    s.garrison += res.atkSurv;              // långskeppen återvänder
-    state.lastBattle = { kind: 'raid', win: res.win, src: srcId, tgt: tgtId, res, stolen, ren };
-    if (s.owner === 'player')
-      pushLog(`🔥 Raid mot ${t.name}: ${stolen} silver plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
+    s.garrison += res.atkSurv;
+    state.lastBattle = { kind: 'raid', win: res.win, src: srcId, tgt: tgtId, res, stolen, ren, grain };
+    if (s.owner === 'player') pushLog(`🔥 Raid mot ${t.name}: ${stolen} silver${grain ? ' + ' + grain + ' mat' : ''} plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
     return res;
   }
 
   function doMarch(srcId, tgtId, send) {
     const s = prov(srcId), t = prov(tgtId);
-    send = clamp(send, 1, s.garrison);
-    s.garrison -= send; t.garrison += send; s.acted = true;
+    send = clamp(send, 1, s.garrison); s.garrison -= send; t.garrison += send; s.acted = true;
     if (s.owner === 'player') pushLog(`→ ${send} krigare marscherade till ${t.name}.`, 'info');
   }
 
   function doRecruit(provId) {
     const p = prov(provId), f = fac(p.owner);
-    if (p.recruited >= recruitCap(p)) return { ok: false, msg: 'Rekryteringsgränsen nådd denna tur.' };
+    if (p.recruited >= recruitCap(p)) return { ok: false, msg: 'Rekryteringsgränsen nådd — bygg upp staden.' };
+    if (warriorsOf(p.owner) + CONFIG.RECRUIT_BATCH > supplyCap(p.owner)) return { ok: false, msg: 'Försörjningen räcker inte — bygg städer eller erövra mer mat.' };
     if (f.silver < CONFIG.RECRUIT_SILVER) return { ok: false, msg: 'För lite silver.' };
-    if (f.food < CONFIG.RECRUIT_FOOD) return { ok: false, msg: 'För lite mat.' };
+    if (f.food < CONFIG.RECRUIT_FOOD) return { ok: false, msg: 'För lite mat i förråd.' };
     f.silver -= CONFIG.RECRUIT_SILVER; f.food -= CONFIG.RECRUIT_FOOD;
     p.garrison += CONFIG.RECRUIT_BATCH; p.recruited += CONFIG.RECRUIT_BATCH;
     return { ok: true };
@@ -488,31 +482,45 @@ const Engine = (function () {
 
   function doBuild(provId) {
     const p = prov(provId), f = fac(p.owner);
-    if (p.settlement >= CONFIG.MAX_SETTLEMENT) return { ok: false, msg: 'Redan högsta nivå.' };
+    if (p.settlement >= CONFIG.MAX_SETTLEMENT) return { ok: false, msg: 'Redan högsta nivå (Fästning).' };
     const cost = buildCost(p);
     if (f.silver < cost) return { ok: false, msg: `Behöver ${cost} silver.` };
     f.silver -= cost; p.settlement += 1; f.renown += 10;
-    if (p.owner === 'player') pushLog(`🏗️ ${p.name} uppgraderat till nivå ${p.settlement}. +10 ära.`, 'good');
+    if (p.owner === 'player') pushLog(`🏗️ ${p.name} uppgraderat till ${tierOf(p).name}. +10 ära.`, 'good');
     return { ok: true };
   }
 
-  // ---- runda / ekonomi ----
+  // ---- ekonomi & försörjning ----
   function collectIncome(fid) {
     const f = fac(fid);
-    let silver = 0, food = 0;
-    provincesOf(fid).forEach(p => {
-      silver += p.income + p.settlement * CONFIG.SETTLEMENT_INCOME;
-      food += p.food;
-    });
-    const upkeep = Math.floor(warriorsOf(fid) / 10); // 1 mat per 10 krigare
+    let silver = 0;
+    provincesOf(fid).forEach(p => { silver += provinceIncome(p); });
     f.silver += silver;
-    f.food = Math.max(0, f.food + food - upkeep);
+    f.food += foodIncome(fid) - upkeep(fid);    // golvas EJ — negativt => svält
+  }
+
+  function desert(fid, n, reason) {
+    n = Math.min(n, warriorsOf(fid));
+    if (n <= 0) return;
+    let left = n;
+    provincesOf(fid).sort((a, b) => b.garrison - a.garrison).forEach(p => {
+      if (left <= 0) return;
+      const take = Math.min(p.garrison, left); p.garrison -= take; left -= take;
+    });
+    if (fid === 'player')
+      pushLog(reason === 'svalt' ? `☠️ Svält! ${n} krigare överger din ätt.` : `⚠️ Försörjningen brister — ${n} krigare deserterar.`, 'bad');
+  }
+
+  function applyAttrition(fid) {
+    const f = fac(fid);
+    if (f.food < 0) { desert(fid, Math.ceil(-f.food / 2), 'svalt'); f.food = 0; }      // 1 krigare per 2 saknad mat
+    const over = warriorsOf(fid) - supplyCap(fid);
+    if (over > 0) desert(fid, Math.ceil(over * CONFIG.OVERCAP_DESERT), 'overcap');
   }
 
   function regenLoot() {
     Object.values(state.provinces).forEach(p => {
-      const regen = Math.max(2, Math.round(p.lootMax * 0.08));
-      p.loot = Math.min(p.lootMax, p.loot + regen);
+      p.loot = Math.min(p.lootMax, p.loot + Math.max(1, Math.round(p.lootMax * 0.05)));
     });
   }
 
@@ -522,82 +530,67 @@ const Engine = (function () {
     const mine = provincesOf(fid);
     if (mine.length === 0) return;
     const isChristian = f.kind === 'christian';
+    const headroom = () => supplyCap(fid) - warriorsOf(fid);
 
-    // 1) rekrytera på frontlinjeprovinser
+    // 1) rekrytera mot ett MÅTTLIGT armémål — inte upp till hela försörjningstaket.
+    //    Så AI bygger en lagom här i stället för en passiv doomstack.
+    const armyTarget = countOf(fid) * (isChristian ? 14 : 10);
+    const cap = supplyCap(fid);
     mine.forEach(p => {
       const frontier = neighbors(p.id).some(n => prov(n.id).owner !== fid);
-      if (!frontier) return;
-      let guard = 0;
-      const maxBatches = isChristian ? 2 : 1;
-      while (guard++ < maxBatches &&
-             f.silver >= CONFIG.RECRUIT_SILVER && f.food >= CONFIG.RECRUIT_FOOD &&
-             p.recruited < recruitCap(p)) {
-        doRecruit(p.id);
-      }
+      const gTarget = isChristian ? 18 : (frontier ? 14 : 7);
+      if (warriorsOf(fid) < Math.min(cap, armyTarget) && p.garrison < gTarget &&
+          headroom() >= CONFIG.RECRUIT_BATCH && f.silver >= CONFIG.RECRUIT_SILVER &&
+          f.food >= CONFIG.RECRUIT_FOOD + 2 && p.recruited < recruitCap(p)) doRecruit(p.id);
     });
+
+    // 2) lägg överskotts-silver på 1 stadsbygge/tur när hären nått sitt mål (höjer mat + försvar)
+    if (f.silver >= TIERS[1].cost && warriorsOf(fid) >= Math.min(cap, armyTarget) - CONFIG.RECRUIT_BATCH) {
+      const cand = mine.filter(p => p.settlement < CONFIG.MAX_SETTLEMENT).sort((a, b) => {
+        const af = neighbors(a.id).some(n => prov(n.id).owner !== fid) ? 1 : 0;
+        const bf = neighbors(b.id).some(n => prov(n.id).owner !== fid) ? 1 : 0;
+        if (af !== bf) return isChristian ? bf - af : af - bf;   // kristna befäster fronten först
+        return a.settlement - b.settlement;
+      });
+      for (const p of cand) { if (f.silver >= buildCost(p) && doBuild(p.id).ok) break; }
+    }
 
     if (isChristian) {
       // defensiv: återtar förlorad mark men expanderar aldrig bortom utgångsläget
       let acts = 0;
-      mine.forEach(p => {
+      provincesOf(fid).forEach(p => {
         if (acts >= 1 || countOf(fid) >= 9 || p.acted || p.garrison < 16) return;
         const t = neighbors(p.id).map(n => prov(n.id))
-          .find(t => t.owner !== fid && t.type !== 'christian' &&
-                     p.garrison > t.garrison * defMult(t) * 2.2);
-        if (t) {
-          const before = t.owner;
-          doInvade(p.id, t.id, p.garrison - 6);
-          if (before === 'player' && t.owner === fid) pushLog(`☩ ${f.name} återtog ${t.name} från dig!`, 'bad');
-          acts++;
-        }
+          .find(t => t.owner !== fid && t.type !== 'christian' && p.garrison > t.garrison * defMult(t) * 2.2);
+        if (t) { const before = t.owner; doInvade(p.id, t.id, p.garrison - 6); if (before === 'player' && t.owner === fid) pushLog(`☩ ${f.name} återtog ${t.name} från dig!`, 'bad'); acts++; }
       });
       return;
     }
 
-    // vikinga-AI: expandera & raida — men lämna alltid försvar hemma
+    // 3) vikinga-AI: expandera & raida — lämna alltid 40 % garnison hemma
     let acts = 0;
-    const ordered = mine.slice().sort((a, b) => b.garrison - a.garrison);
-    ordered.forEach(p => {
+    provincesOf(fid).slice().sort((a, b) => b.garrison - a.garrison).forEach(p => {
       if (acts >= 2 || p.acted || p.garrison < 6) return;
-      const keep = Math.ceil(p.garrison * 0.4);      // håll 40 % kvar som garnison
-      const send = p.garrison - keep;
-      if (send < 4) return;
+      const keep = Math.ceil(p.garrison * 0.4); const send = p.garrison - keep; if (send < 4) return;
       const opts = neighbors(p.id).map(n => prov(n.id)).filter(t => t.owner !== fid);
       if (opts.length === 0) return;
-
       let best = null, bestScore = -1e9;
-      opts.forEach(t => {
-        const winnable = send > t.garrison * defMult(t) * 1.4;
-        const score = (winnable ? 100 : 0) + t.loot * 0.2 - t.garrison * defMult(t);
-        if (score > bestScore) { bestScore = score; best = t; }
-      });
+      opts.forEach(t => { const winnable = send > t.garrison * defMult(t) * 1.4; const score = (winnable ? 100 : 0) + t.loot * 0.2 - t.garrison * defMult(t); if (score > bestScore) { bestScore = score; best = t; } });
       if (!best) return;
-
       if (send > best.garrison * defMult(best) * 1.4) {
-        const before = best.owner;
-        doInvade(p.id, best.id, send);
-        if (before === 'player' && best.owner === fid) pushLog(`⚔️ ${f.name} erövrade ${best.name} från dig!`, 'bad');
-        acts++;
-      } else if (best.loot > 50) {
-        doRaid(p.id, best.id, send);
-        acts++;
-      }
+        const before = best.owner; doInvade(p.id, best.id, send);
+        if (before === 'player' && best.owner === fid) pushLog(`⚔️ ${f.name} erövrade ${best.name} från dig!`, 'bad'); acts++;
+      } else if (best.loot > 50) { doRaid(p.id, best.id, send); acts++; }
     });
   }
 
   function checkEnd() {
-    const pCount = countOf('player');
-    const pRen = fac('player').renown;
+    const pCount = countOf('player'), pRen = fac('player').renown;
     if (pCount === 0) { state.over = true; state.won = false; pushLog('☠️ Din ätt har fallit. Sagan är slut.', 'bad'); return; }
-    if (pRen >= CONFIG.RENOWN_TO_WIN || pCount >= CONFIG.PROVINCES_TO_WIN) {
-      state.over = true; state.won = true; pushLog('👑 Din ätt härskar över Norden! Seger!', 'good'); return;
-    }
+    if (pRen >= CONFIG.RENOWN_TO_WIN || pCount >= CONFIG.PROVINCES_TO_WIN) { state.over = true; state.won = true; pushLog('👑 Din ätt härskar över Norden! Seger!', 'good'); return; }
     ['ravnsson', 'bjornsson'].forEach(fid => {
       if (state.over) return;
-      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) {
-        state.over = true; state.won = false;
-        pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad');
-      }
+      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) { state.over = true; state.won = false; pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad'); }
     });
   }
 
@@ -605,7 +598,7 @@ const Engine = (function () {
     if (state.over) return;
     state.selected = null;
     ['bjornsson', 'ravnsson', 'christian'].forEach(aiTurn);
-    ['player', 'bjornsson', 'ravnsson', 'christian'].forEach(collectIncome);
+    ['player', 'bjornsson', 'ravnsson', 'christian'].forEach(fid => { collectIncome(fid); applyAttrition(fid); });
     regenLoot();
     Object.values(state.provinces).forEach(p => { p.acted = false; p.recruited = 0; });
     state.turn += 1;
@@ -616,15 +609,17 @@ const Engine = (function () {
     init,
     get state() { return state; },
     prov, fac, neighbors, isAdjacent, provincesOf, countOf, warriorsOf,
-    defMult, recruitCap, buildCost, effectiveDefense,
+    tierOf, defMult, provinceIncome, provinceFood, recruitCap, buildCost, effectiveDefense,
+    foodIncome, supplyCap, upkeep,
     doInvade, doRaid, doMarch, doRecruit, doBuild,
     endPlayerTurn, pushLog,
   };
 })();
 // ============================================================
 //  JARL — kartrendering på canvas
-//  Total War-stil: ifyllda regioner (Voronoi-celler) med gränser,
-//  illustrerad terräng (gräs, skog, flod, broar) och städer.
+//  Total War-stil: Voronoi-regioner med gränser, illustrerad
+//  terräng, städer som växer med bebyggelsenivå, och resten av
+//  Europa grått som kontext.
 // ============================================================
 
 const Render = (function () {
@@ -632,8 +627,8 @@ const Render = (function () {
   let scale = 1, ox = 0, oy = 0;
   let cssW = 0, cssH = 0;
 
-  const CELLS = {};       // provins-id -> regionpolygon (världskoord)
-  const CENTROID = {};    // provins-id -> [cx, cy]
+  const CELLS = {};
+  const CENTROID = {};
 
   // ---------- geometri ----------
   function pointInPoly(x, y, poly) {
@@ -644,24 +639,18 @@ const Render = (function () {
     }
     return inside;
   }
-
-  // klipp polygon mot halvplanet av punkter närmare frö S än O (perpendikulär bisektor)
   function clipHalf(poly, sx, sy, oxp, oyp) {
     const mx = (sx + oxp) / 2, my = (sy + oyp) / 2, nx = oxp - sx, ny = oyp - sy;
-    const side = p => (p[0] - mx) * nx + (p[1] - my) * ny;   // <=0 => närmare S (behåll)
+    const side = p => (p[0] - mx) * nx + (p[1] - my) * ny;
     const out = [];
     for (let i = 0; i < poly.length; i++) {
       const a = poly[i], b = poly[(i + 1) % poly.length];
       const da = side(a), db = side(b);
       if (da <= 0) out.push(a);
-      if ((da <= 0) !== (db <= 0)) {
-        const t = da / (da - db);
-        out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
-      }
+      if ((da <= 0) !== (db <= 0)) { const t = da / (da - db); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
     }
     return out;
   }
-
   function polyCentroid(poly) {
     let a = 0, cx = 0, cy = 0;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -669,108 +658,60 @@ const Render = (function () {
       a += f; cx += (poly[j][0] + poly[i][0]) * f; cy += (poly[j][1] + poly[i][1]) * f;
     }
     a *= 0.5;
-    if (Math.abs(a) < 1e-6) {
-      let mx = 0, my = 0; poly.forEach(p => { mx += p[0]; my += p[1]; });
-      return [mx / poly.length, my / poly.length];
-    }
+    if (Math.abs(a) < 1e-6) { let mx = 0, my = 0; poly.forEach(p => { mx += p[0]; my += p[1]; }); return [mx / poly.length, my / poly.length]; }
     return [cx / (6 * a), cy / (6 * a)];
   }
-
-  // skärning mellan två segment; returnerar punkt eller null
   function segInt(ax, ay, bx, by, cx, cy, dx, dy) {
     const r1 = bx - ax, r2 = by - ay, s1 = dx - cx, s2 = dy - cy;
-    const den = r1 * s2 - r2 * s1;
-    if (Math.abs(den) < 1e-9) return null;
-    const t = ((cx - ax) * s2 - (cy - ay) * s1) / den;
-    const u = ((cx - ax) * r2 - (cy - ay) * r1) / den;
+    const den = r1 * s2 - r2 * s1; if (Math.abs(den) < 1e-9) return null;
+    const t = ((cx - ax) * s2 - (cy - ay) * s1) / den, u = ((cx - ax) * r2 - (cy - ay) * r1) / den;
     if (t < 0 || t > 1 || u < 0 || u > 1) return null;
     return [ax + t * r1, ay + t * r2];
   }
-
   function buildRegions() {
     const byLand = {};
     PROVINCES.forEach(p => { (byLand[p.land] = byLand[p.land] || []).push(p); });
     Object.keys(byLand).forEach(land => {
-      const base = LANDS[land].poly;
-      const seeds = byLand[land];
+      const base = LANDS[land].poly, seeds = byLand[land];
       seeds.forEach(p => {
         let cell = base.map(pt => [pt[0], pt[1]]);
         seeds.forEach(o => { if (o.id !== p.id) cell = clipHalf(cell, p.x, p.y, o.x, o.y); });
-        CELLS[p.id] = cell;
-        CENTROID[p.id] = polyCentroid(cell);
+        CELLS[p.id] = cell; CENTROID[p.id] = polyCentroid(cell);
       });
     });
   }
 
-  // ---------- determinism (skog mm.) ----------
-  function hash(str) {
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return h >>> 0;
-  }
-  function rnd(seed) {
-    let t = (seed + 0x6D2B79F5) | 0;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  }
+  // ---------- determinism ----------
+  function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rnd(seed) { let t = (seed + 0x6D2B79F5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
   const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
   // ---------- transform ----------
-  function attach(c) {
-    canvas = c;
-    ctx = c.getContext('2d');
-    resize();
-    window.addEventListener('resize', resize);
-    window.addEventListener('orientationchange', () => setTimeout(resize, 200));
-  }
+  function attach(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 200)); }
   function resize() {
     dpr = window.devicePixelRatio || 1;
-    const r = canvas.getBoundingClientRect();
-    cssW = r.width; cssH = r.height;
-    if (cssW === 0 || cssH === 0) return;
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
+    const r = canvas.getBoundingClientRect(); cssW = r.width; cssH = r.height; if (cssW === 0 || cssH === 0) return;
+    canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
     scale = Math.min(cssW / CONFIG.WORLD_W, cssH / CONFIG.WORLD_H);
-    ox = (cssW - CONFIG.WORLD_W * scale) / 2;
-    oy = (cssH - CONFIG.WORLD_H * scale) / 2;
+    ox = (cssW - CONFIG.WORLD_W * scale) / 2; oy = (cssH - CONFIG.WORLD_H * scale) / 2;
   }
   const w2s = (x, y) => ({ x: x * scale + ox, y: y * scale + oy });
   const s2w = (x, y) => ({ x: (x - ox) / scale, y: (y - oy) / scale });
 
   // ---------- picking ----------
-  function regionAt(x, y) {
-    for (const id in CELLS) if (pointInPoly(x, y, CELLS[id])) return id;
-    return null;
-  }
-  function pickProvince(sx, sy) {
-    const wp = s2w(sx, sy);
-    const id = regionAt(wp.x, wp.y);
-    return id ? Engine.prov(id) : null;
-  }
+  function regionAt(x, y) { for (const id in CELLS) if (pointInPoly(x, y, CELLS[id])) return id; return null; }
+  function pickProvince(sx, sy) { const wp = s2w(sx, sy); const id = regionAt(wp.x, wp.y); return id ? Engine.prov(id) : null; }
   function validTargets(selId) {
-    const res = {};
-    if (!selId) return res;
-    const p = Engine.prov(selId);
-    if (!p || p.owner !== 'player' || p.acted || p.garrison <= 0) return res;
-    Engine.neighbors(selId).forEach(n => {
-      res[n.id] = (Engine.prov(n.id).owner === 'player') ? 'friend' : 'enemy';
-    });
+    const res = {}; if (!selId) return res;
+    const p = Engine.prov(selId); if (!p || p.owner !== 'player' || p.acted || p.garrison <= 0) return res;
+    Engine.neighbors(selId).forEach(n => { res[n.id] = (Engine.prov(n.id).owner === 'player') ? 'friend' : 'enemy'; });
     return res;
   }
 
   // ---------- ritprimitiver ----------
-  function pathPolyW(poly) {
-    poly.forEach((pt, i) => { const s = w2s(pt[0], pt[1]); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
-    ctx.closePath();
-  }
+  function pathPolyW(poly) { poly.forEach((pt, i) => { const s = w2s(pt[0], pt[1]); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); }); ctx.closePath(); }
   function tri(x1, y1, x2, y2, x3, y3) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.closePath(); ctx.fill(); }
-  function rrect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  }
-
+  function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   const GRASS = ['#7aa047', '#86a94f', '#6f9740', '#80a44a'];
   function grassFor(id) { return GRASS[hash(id) % GRASS.length]; }
 
@@ -780,8 +721,8 @@ const Render = (function () {
     const t = (now || 0) / 1000;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
-
     drawSea(t);
+    drawContext();
     Object.keys(LANDS).forEach(drawLand);
     drawHighlights(t);
     drawConnections(t);
@@ -790,243 +731,152 @@ const Render = (function () {
   }
 
   function drawSea(t) {
-    const g = ctx.createLinearGradient(0, 0, 0, cssH);
-    g.addColorStop(0, '#2b6e86'); g.addColorStop(1, '#1c4f63');
+    const g = ctx.createLinearGradient(0, 0, 0, cssH); g.addColorStop(0, '#2b6e86'); g.addColorStop(1, '#1c4f63');
     ctx.fillStyle = g; ctx.fillRect(0, 0, cssW, cssH);
-    // stiltje-vågor
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1.5;
-    const step = 46 * scale;
-    for (let yy = (t * 6 % step) - step; yy < cssH; yy += step) {
-      for (let xx = 0; xx < cssW; xx += step) {
-        ctx.beginPath(); ctx.arc(xx + (Math.floor(yy / step) % 2 ? step / 2 : 0), yy, 5 * scale, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
-      }
-    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1.5; const step = 46 * scale;
+    for (let yy = (t * 6 % step) - step; yy < cssH; yy += step) for (let xx = 0; xx < cssW; xx += step) { ctx.beginPath(); ctx.arc(xx + (Math.floor(yy / step) % 2 ? step / 2 : 0), yy, 5 * scale, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke(); }
+  }
+
+  // resten av Europa — grått, icke-spelbart
+  function drawContext() {
+    CONTEXT_LANDS.forEach(c => {
+      ctx.save();
+      ctx.beginPath(); pathPolyW(c.poly);
+      ctx.fillStyle = '#6b665b'; ctx.fill();
+      ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(35,40,34,0.5)'; ctx.stroke();
+      ctx.restore();
+    });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `italic 600 ${Math.max(9, Math.round(12 * Math.min(1, scale / 0.4)))}px system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(228,224,214,0.42)';
+    CONTEXT_LANDS.forEach(c => { const s = w2s(c.labelPos[0], c.labelPos[1]); ctx.fillText(c.label, s.x, s.y); });
   }
 
   function drawLand(land) {
-    const info = LANDS[land];
-    const seeds = PROVINCES.filter(p => p.land === land);
-
-    // skugga under landmassan (djup)
-    ctx.save();
-    ctx.fillStyle = 'rgba(10,25,30,0.35)';
-    ctx.beginPath();
+    const info = LANDS[land]; const seeds = PROVINCES.filter(p => p.land === land);
+    ctx.save(); ctx.fillStyle = 'rgba(10,25,30,0.35)'; ctx.beginPath();
     info.poly.forEach((pt, i) => { const s = w2s(pt[0], pt[1]); const x = s.x + 5, y = s.y + 7; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
+    ctx.closePath(); ctx.fill(); ctx.restore();
 
-    // gräs + ägartint per region
     seeds.forEach(p => {
       const cell = CELLS[p.id]; if (!cell || cell.length < 3) return;
-      ctx.beginPath(); pathPolyW(cell);
-      ctx.fillStyle = grassFor(p.id); ctx.fill();
+      ctx.beginPath(); pathPolyW(cell); ctx.fillStyle = grassFor(p.id); ctx.fill();
       const f = Engine.fac(Engine.prov(p.id).owner);
       if (f.kind !== 'neutral') { ctx.save(); ctx.globalAlpha = 0.34; ctx.fillStyle = f.color; ctx.fill(); ctx.restore(); }
     });
 
-    // terräng-dekor (skog/berg) klippt till landmassan
-    ctx.save();
-    ctx.beginPath(); pathPolyW(info.poly); ctx.clip();
-    seeds.forEach(decorateCell);
-    ctx.restore();
+    ctx.save(); ctx.beginPath(); pathPolyW(info.poly); ctx.clip(); seeds.forEach(decorateCell); ctx.restore();
 
-    // interna regiongränser
-    seeds.forEach(p => {
-      const cell = CELLS[p.id]; if (!cell || cell.length < 3) return;
-      ctx.beginPath(); pathPolyW(cell);
-      ctx.lineJoin = 'round'; ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(70,55,30,0.55)'; ctx.stroke();
-    });
+    seeds.forEach(p => { const cell = CELLS[p.id]; if (!cell || cell.length < 3) return; ctx.beginPath(); pathPolyW(cell); ctx.lineJoin = 'round'; ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(70,55,30,0.55)'; ctx.stroke(); });
 
-    // kust: strand + mörk linje
     ctx.lineJoin = 'round';
     ctx.beginPath(); pathPolyW(info.poly); ctx.lineWidth = 5; ctx.strokeStyle = '#d8b878'; ctx.stroke();
     ctx.beginPath(); pathPolyW(info.poly); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(40,55,35,0.65)'; ctx.stroke();
-
-    // flod
     if (info.river) drawRiver(info.river);
   }
 
   function decorateCell(p) {
     const cell = CELLS[p.id]; if (!cell || cell.length < 3) return;
-    const c = CENTROID[p.id];
-    const seed = hash(p.id);
-    const big = p.land === 'scandia' || p.land === 'britain' || p.land === 'continent';
-    const n = big ? 7 : 3;
+    const c = CENTROID[p.id]; const seed = hash(p.id);
+    const big = p.land === 'scandia' || p.land === 'britain' || p.land === 'continent'; const n = big ? 7 : 3;
     for (let i = 0; i < n; i++) {
-      const ang = rnd(seed + i * 3) * 6.283;
-      const rad = (0.3 + rnd(seed + i * 7) * 0.6) * 64;
+      const ang = rnd(seed + i * 3) * 6.283; const rad = (0.3 + rnd(seed + i * 7) * 0.6) * 64;
       const wx = c[0] + Math.cos(ang) * rad, wy = c[1] + Math.sin(ang) * rad;
       if (pointInPoly(wx, wy, cell) && dist(wx, wy, p.x, p.y) > 28) drawTree(wx, wy);
     }
-    if (p.id === 'trondelag') { drawMountain(p.x - 34, p.y + 2); drawMountain(p.x + 4, p.y - 12); }
-    if (p.id === 'wessex') { drawMountain(p.x - 28, p.y + 6); }
+    if (p.id === 'trondelag') { drawMountain(p.x - 18, p.y + 8); drawMountain(p.x + 16, p.y - 6); }
+    if (p.id === 'wessex') drawMountain(p.x - 26, p.y + 4);
   }
+  function drawTree(wx, wy) { const s = w2s(wx, wy), h = Math.max(7, 13 * scale); ctx.fillStyle = 'rgba(20,35,15,0.25)'; ctx.beginPath(); ctx.ellipse(s.x, s.y + 1, h * 0.5, h * 0.2, 0, 0, 6.283); ctx.fill(); ctx.fillStyle = '#4a6a2c'; tri(s.x, s.y - h, s.x - h * 0.6, s.y, s.x + h * 0.6, s.y); ctx.fillStyle = '#3d5a23'; tri(s.x, s.y - h * 1.4, s.x - h * 0.5, s.y - h * 0.45, s.x + h * 0.5, s.y - h * 0.45); }
+  function drawMountain(wx, wy) { const s = w2s(wx, wy), h = Math.max(14, 26 * scale); ctx.fillStyle = '#8a8478'; tri(s.x, s.y - h, s.x - h * 0.7, s.y, s.x + h * 0.7, s.y); ctx.fillStyle = '#f1f0ec'; tri(s.x, s.y - h, s.x - h * 0.22, s.y - h * 0.5, s.x + h * 0.22, s.y - h * 0.5); }
+  function drawRiver(pts) { const w = Math.max(5, 15 * scale); ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); pts.forEach((pt, i) => { const s = w2s(pt[0], pt[1]); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); }); ctx.lineWidth = w; ctx.strokeStyle = '#2f72a0'; ctx.stroke(); ctx.lineWidth = w * 0.5; ctx.strokeStyle = '#5aa6d2'; ctx.stroke(); ctx.restore(); }
 
-  function drawTree(wx, wy) {
-    const s = w2s(wx, wy), h = Math.max(7, 13 * scale);
-    ctx.fillStyle = 'rgba(20,35,15,0.25)';
-    ctx.beginPath(); ctx.ellipse(s.x, s.y + 1, h * 0.5, h * 0.2, 0, 0, 6.283); ctx.fill();
-    ctx.fillStyle = '#4a6a2c'; tri(s.x, s.y - h, s.x - h * 0.6, s.y, s.x + h * 0.6, s.y);
-    ctx.fillStyle = '#3d5a23'; tri(s.x, s.y - h * 1.4, s.x - h * 0.5, s.y - h * 0.45, s.x + h * 0.5, s.y - h * 0.45);
-  }
-
-  function drawMountain(wx, wy) {
-    const s = w2s(wx, wy), h = Math.max(14, 26 * scale);
-    ctx.fillStyle = '#8a8478'; tri(s.x, s.y - h, s.x - h * 0.7, s.y, s.x + h * 0.7, s.y);
-    ctx.fillStyle = '#f1f0ec'; tri(s.x, s.y - h, s.x - h * 0.22, s.y - h * 0.5, s.x + h * 0.22, s.y - h * 0.5);
-  }
-
-  function drawRiver(pts) {
-    const w = Math.max(5, 15 * scale);
-    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath();
-    pts.forEach((pt, i) => { const s = w2s(pt[0], pt[1]); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
-    ctx.lineWidth = w; ctx.strokeStyle = '#2f72a0'; ctx.stroke();
-    ctx.lineWidth = w * 0.5; ctx.strokeStyle = '#5aa6d2'; ctx.stroke();
-    ctx.restore();
-  }
-
-  // ---------- vägar / sjövägar / broar ----------
-  function drawConnections(t) {
-    EDGES.forEach(([a, b, sea]) => {
-      const pa = Engine.prov(a), pb = Engine.prov(b);
-      if (pa.land === pb.land && !sea) drawRoad(pa, pb);
-      else drawSeaRoute(pa, pb);
-    });
-  }
-
+  function drawConnections(t) { EDGES.forEach(([a, b, sea]) => { const pa = Engine.prov(a), pb = Engine.prov(b); if (pa.land === pb.land && !sea) drawRoad(pa, pb); else drawSeaRoute(pa, pb); }); }
   function drawRoad(pa, pb) {
     const sa = w2s(pa.x, pa.y), sb = w2s(pb.x, pb.y);
-    ctx.save(); ctx.lineCap = 'round';
-    ctx.setLineDash([2, 7]); ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(110,86,52,0.7)';
-    ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
-    ctx.restore();
-    const riv = LANDS[pa.land].river;
-    if (riv) for (let i = 0; i < riv.length - 1; i++) {
-      const ip = segInt(pa.x, pa.y, pb.x, pb.y, riv[i][0], riv[i][1], riv[i + 1][0], riv[i + 1][1]);
-      if (ip) drawBridge(ip, riv[i], riv[i + 1]);
-    }
+    ctx.save(); ctx.lineCap = 'round'; ctx.setLineDash([2, 7]); ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(110,86,52,0.7)';
+    ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke(); ctx.restore();
+    const riv = LANDS[pa.land].river; if (riv) for (let i = 0; i < riv.length - 1; i++) { const ip = segInt(pa.x, pa.y, pb.x, pb.y, riv[i][0], riv[i][1], riv[i + 1][0], riv[i + 1][1]); if (ip) drawBridge(ip, riv[i], riv[i + 1]); }
   }
-
   function drawBridge(wpt, ra, rb) {
-    const s = w2s(wpt[0], wpt[1]);
-    const ang = Math.atan2(rb[1] - ra[1], rb[0] - ra[0]) + Math.PI / 2; // tvärs floden
-    const len = Math.max(16, 30 * scale), wdt = Math.max(7, 12 * scale);
-    ctx.save();
-    ctx.translate(s.x, s.y); ctx.rotate(ang);
-    ctx.fillStyle = '#7d5a36'; rrect(-len / 2, -wdt / 2, len, wdt, 3); ctx.fill();
-    ctx.fillStyle = '#9c7748';
-    const planks = 4;
-    for (let i = 0; i < planks; i++) { rrect(-len / 2 + 2 + i * (len - 4) / planks, -wdt / 2 + 2, (len - 4) / planks - 2, wdt - 4, 1); ctx.fill(); }
-    ctx.restore();
+    const s = w2s(wpt[0], wpt[1]); const ang = Math.atan2(rb[1] - ra[1], rb[0] - ra[0]) + Math.PI / 2; const len = Math.max(16, 30 * scale), wdt = Math.max(7, 12 * scale);
+    ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(ang); ctx.fillStyle = '#7d5a36'; rrect(-len / 2, -wdt / 2, len, wdt, 3); ctx.fill();
+    ctx.fillStyle = '#9c7748'; const planks = 4; for (let i = 0; i < planks; i++) { rrect(-len / 2 + 2 + i * (len - 4) / planks, -wdt / 2 + 2, (len - 4) / planks - 2, wdt - 4, 1); ctx.fill(); } ctx.restore();
   }
-
   function drawSeaRoute(pa, pb) {
     const sa = w2s(pa.x, pa.y), sb = w2s(pb.x, pb.y);
-    ctx.save(); ctx.lineCap = 'round';
-    ctx.setLineDash([3, 8]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(225,240,248,0.35)';
-    ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
-    ctx.restore();
-    // litet skepp i mitten
+    ctx.save(); ctx.lineCap = 'round'; ctx.setLineDash([3, 8]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(225,240,248,0.35)';
+    ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke(); ctx.restore();
     const mx = (sa.x + sb.x) / 2, my = (sa.y + sb.y) / 2, sz = Math.max(4, 6 * scale);
-    ctx.save(); ctx.translate(mx, my); ctx.rotate(Math.atan2(sb.y - sa.y, sb.x - sa.x));
-    ctx.fillStyle = 'rgba(60,40,25,0.8)';
-    ctx.beginPath(); ctx.moveTo(-sz, -sz * 0.5); ctx.lineTo(sz, -sz * 0.5); ctx.lineTo(sz * 0.6, sz * 0.5); ctx.lineTo(-sz * 0.6, sz * 0.5); ctx.closePath(); ctx.fill();
-    ctx.restore();
+    ctx.save(); ctx.translate(mx, my); ctx.rotate(Math.atan2(sb.y - sa.y, sb.x - sa.x)); ctx.fillStyle = 'rgba(60,40,25,0.8)';
+    ctx.beginPath(); ctx.moveTo(-sz, -sz * 0.5); ctx.lineTo(sz, -sz * 0.5); ctx.lineTo(sz * 0.6, sz * 0.5); ctx.lineTo(-sz * 0.6, sz * 0.5); ctx.closePath(); ctx.fill(); ctx.restore();
   }
 
-  // ---------- markeringar ----------
   function drawHighlights(t) {
-    const sel = Engine.state.selected;
-    if (!sel) return;
-    const pulse = 0.5 + 0.5 * Math.sin(t * 4);
-    const targets = validTargets(sel);
+    const sel = Engine.state.selected; if (!sel) return;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4); const targets = validTargets(sel);
     Object.keys(targets).forEach(id => {
-      const cell = CELLS[id]; if (!cell) return;
-      const enemy = targets[id] === 'enemy';
-      ctx.save();
-      ctx.beginPath(); pathPolyW(cell);
-      ctx.fillStyle = enemy ? `rgba(255,90,70,${0.10 + pulse * 0.16})` : `rgba(120,225,120,${0.10 + pulse * 0.14})`;
-      ctx.fill();
-      ctx.lineWidth = 2.5 + pulse * 1.5; ctx.strokeStyle = enemy ? `rgba(255,120,95,${0.7 + pulse * 0.3})` : `rgba(150,240,150,0.9)`;
-      ctx.stroke();
-      ctx.restore();
+      const cell = CELLS[id]; if (!cell) return; const enemy = targets[id] === 'enemy';
+      ctx.save(); ctx.beginPath(); pathPolyW(cell);
+      ctx.fillStyle = enemy ? `rgba(255,90,70,${0.10 + pulse * 0.16})` : `rgba(120,225,120,${0.10 + pulse * 0.14})`; ctx.fill();
+      ctx.lineWidth = 2.5 + pulse * 1.5; ctx.strokeStyle = enemy ? `rgba(255,120,95,${0.7 + pulse * 0.3})` : `rgba(150,240,150,0.9)`; ctx.stroke(); ctx.restore();
     });
-    const cell = CELLS[sel]; if (cell) {
-      ctx.save();
-      ctx.beginPath(); pathPolyW(cell);
-      ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,224,130,${0.75 + pulse * 0.25})`; ctx.stroke();
-      ctx.restore();
-    }
+    const cell = CELLS[sel]; if (cell) { ctx.save(); ctx.beginPath(); pathPolyW(cell); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,224,130,${0.75 + pulse * 0.25})`; ctx.stroke(); ctx.restore(); }
   }
 
-  // ---------- städer ----------
+  // ---------- städer (växer med bebyggelsenivå 0..5) ----------
   function drawCity(p) {
-    const s = w2s(p.x, p.y);
-    const f = Engine.fac(p.owner);
-    const u = Math.max(0.55, scale * 1.25);   // pixel-enhet för stadens skala
-    const lvl = p.settlement;
+    const s = w2s(p.x, p.y); const f = Engine.fac(p.owner); const lvl = p.settlement;
+    const u = Math.max(0.55, scale * 1.25) * (1 + lvl * 0.05);
 
-    // skugga
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath(); ctx.ellipse(s.x, s.y + 11 * u, 24 * u, 9 * u, 0, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s.x, s.y + 12 * u, (22 + lvl * 2) * u, (8 + lvl) * u, 0, 0, 6.283); ctx.fill();
 
-    // ringmur vid hög nivå
     if (lvl >= 2) {
-      ctx.fillStyle = '#cdbf9e';
-      ctx.beginPath(); ctx.ellipse(s.x, s.y + 4 * u, 23 * u, 13 * u, 0, 0, 6.283); ctx.fill();
-      ctx.strokeStyle = '#a8966f'; ctx.lineWidth = 2 * u; ctx.stroke();
+      ctx.fillStyle = '#cdbf9e'; ctx.beginPath(); ctx.ellipse(s.x, s.y + 4 * u, (21 + lvl * 1.5) * u, (12 + lvl) * u, 0, 0, 6.283); ctx.fill();
+      ctx.strokeStyle = '#a8966f'; ctx.lineWidth = (1.5 + lvl * 0.25) * u; ctx.stroke();
+      if (lvl >= 4) [-1, 1].forEach(side => { const tx = s.x + side * (19 + lvl) * u, ty = s.y; ctx.fillStyle = '#bdb6a6'; rrect(tx - 3 * u, ty - 12 * u, 6 * u, 14 * u, 1.5 * u); ctx.fill(); ctx.fillStyle = '#8f897c'; ctx.fillRect(tx - 3 * u, ty - 13 * u, 6 * u, 2.5 * u); });
     }
 
-    const house = (dx, dy, w, h, roof) => {
-      ctx.fillStyle = '#e7d3a8'; rrect(s.x + dx - w / 2, s.y + dy - h, w, h, 1.5 * u); ctx.fill();
-      ctx.fillStyle = roof; tri(s.x + dx, s.y + dy - h - w * 0.5, s.x + dx - w * 0.62, s.y + dy - h, s.x + dx + w * 0.62, s.y + dy - h);
-    };
+    const house = (dx, dy, w, h, roof) => { ctx.fillStyle = '#e7d3a8'; rrect(s.x + dx - w / 2, s.y + dy - h, w, h, 1.5 * u); ctx.fill(); ctx.fillStyle = roof; tri(s.x + dx, s.y + dy - h - w * 0.5, s.x + dx - w * 0.62, s.y + dy - h, s.x + dx + w * 0.62, s.y + dy - h); };
+    house(-13 * u, 6 * u, 11 * u, 9 * u, '#b4502f'); house(12 * u, 7 * u, 10 * u, 8 * u, '#9c4a2b');
+    if (lvl >= 1) house(-2 * u, 12 * u, 9 * u, 7 * u, '#a85230');
+    if (lvl >= 3) { house(21 * u, 11 * u, 8 * u, 7 * u, '#b4502f'); house(-21 * u, 10 * u, 8 * u, 7 * u, '#9c4a2b'); }
 
-    // bystugor
-    house(-13 * u, 5 * u, 11 * u, 9 * u, '#b4502f');
-    house(12 * u, 6 * u, 10 * u, 8 * u, '#9c4a2b');
-    if (lvl >= 1) house(-2 * u, 11 * u, 9 * u, 7 * u, '#a85230');
-
+    let topY;
     if (p.type === 'christian') {
-      // kyrka med kors
-      ctx.fillStyle = '#efe7d4'; rrect(s.x - 5 * u, s.y - 16 * u, 10 * u, 18 * u, 1.5 * u); ctx.fill();
-      ctx.fillStyle = '#cdbf9e'; tri(s.x, s.y - 24 * u, s.x - 6 * u, s.y - 16 * u, s.x + 6 * u, s.y - 16 * u);
+      const ch = (15 + lvl * 2) * u;
+      ctx.fillStyle = '#efe7d4'; rrect(s.x - 5 * u, s.y - ch, 10 * u, ch + 2 * u, 1.5 * u); ctx.fill();
+      ctx.fillStyle = '#cdbf9e'; tri(s.x, s.y - ch - 8 * u, s.x - 6 * u, s.y - ch, s.x + 6 * u, s.y - ch);
       ctx.strokeStyle = '#6c5a3a'; ctx.lineWidth = Math.max(1, 1.6 * u);
-      ctx.beginPath(); ctx.moveTo(s.x, s.y - 31 * u); ctx.lineTo(s.x, s.y - 24 * u); ctx.moveTo(s.x - 2.5 * u, s.y - 28.5 * u); ctx.lineTo(s.x + 2.5 * u, s.y - 28.5 * u); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(s.x, s.y - ch - 15 * u); ctx.lineTo(s.x, s.y - ch - 8 * u); ctx.moveTo(s.x - 2.5 * u, s.y - ch - 12 * u); ctx.lineTo(s.x + 2.5 * u, s.y - ch - 12 * u); ctx.stroke();
+      topY = s.y - ch - 15 * u;
     } else {
-      // kärntorn (keep)
-      ctx.fillStyle = '#bdb6a6'; rrect(s.x - 7 * u, s.y - 18 * u, 14 * u, 22 * u, 2 * u); ctx.fill();
-      ctx.fillStyle = '#a49d8c';
-      for (let i = 0; i < 3; i++) { ctx.fillRect(s.x - 7 * u + i * 5 * u, s.y - 21 * u, 3.2 * u, 3.5 * u); }
-      ctx.fillStyle = 'rgba(0,0,0,0.18)'; rrect(s.x - 2 * u, s.y - 9 * u, 4 * u, 9 * u, 1 * u); ctx.fill();
+      const kh = (17 + lvl * 2.6) * u, kw = (13 + lvl * 1.1) * u;
+      if (lvl >= 4) [-1, 1].forEach(side => { const tx = s.x + side * (kw * 0.5 + 4 * u); ctx.fillStyle = '#aaa496'; rrect(tx - 3.5 * u, s.y - kh * 0.78, 7 * u, kh * 0.78 + 2 * u, 1.5 * u); ctx.fill(); ctx.fillStyle = '#8f897c'; ctx.fillRect(tx - 3.5 * u, s.y - kh * 0.78 - 2 * u, 7 * u, 2.5 * u); });
+      ctx.fillStyle = '#bdb6a6'; rrect(s.x - kw / 2, s.y - kh, kw, kh + 2 * u, 2 * u); ctx.fill();
+      ctx.fillStyle = '#a49d8c'; const teeth = Math.min(5, 3 + Math.floor(lvl / 2)); for (let i = 0; i < teeth; i++) ctx.fillRect(s.x - kw / 2 + i * (kw / teeth), s.y - kh - 3 * u, (kw / teeth) * 0.62, 3.5 * u);
+      ctx.fillStyle = 'rgba(0,0,0,0.18)'; rrect(s.x - 2 * u, s.y - kh * 0.45, 4 * u, kh * 0.45, 1 * u); ctx.fill();
+      topY = s.y - kh - 3 * u;
     }
 
     // baner i ägarfärg
+    const poleTop = topY - 12 * u;
     ctx.strokeStyle = '#5a4a32'; ctx.lineWidth = Math.max(1, 1.6 * u);
-    ctx.beginPath(); ctx.moveTo(s.x + 9 * u, s.y - 14 * u); ctx.lineTo(s.x + 9 * u, s.y - 30 * u); ctx.stroke();
-    ctx.fillStyle = f.color;
-    ctx.beginPath(); ctx.moveTo(s.x + 9 * u, s.y - 30 * u); ctx.lineTo(s.x + 22 * u, s.y - 27 * u); ctx.lineTo(s.x + 9 * u, s.y - 24 * u); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(s.x + 9 * u, s.y - 12 * u); ctx.lineTo(s.x + 9 * u, poleTop); ctx.stroke();
+    ctx.fillStyle = f.color; ctx.beginPath(); ctx.moveTo(s.x + 9 * u, poleTop); ctx.lineTo(s.x + 22 * u, poleTop + 3 * u); ctx.lineTo(s.x + 9 * u, poleTop + 6 * u); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
 
     // garnison-bricka
-    const bx = s.x + 16 * u, by = s.y + 9 * u, br = Math.max(8, 10 * u);
-    ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.283);
-    ctx.fillStyle = '#241a12'; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = f.color; ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${Math.max(10, br * 1.05)}px system-ui, sans-serif`;
-    ctx.fillText(String(p.garrison), bx, by);
+    const bx = s.x + 16 * u, by = s.y + 11 * u, br = Math.max(8, 10 * u);
+    ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.283); ctx.fillStyle = '#241a12'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = f.color; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${Math.max(10, br * 1.05)}px system-ui, sans-serif`; ctx.fillText(String(p.garrison), bx, by);
   }
 
   function drawLabel(p) {
-    const c = CENTROID[p.id];
-    const s = w2s(c[0], c[1]);
-    const fontPx = Math.max(10, 13 * Math.min(1, scale / 0.4));
-    ctx.font = `600 ${fontPx}px system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const yy = s.y - 30 * Math.max(0.55, scale * 1.25);
+    const c = CENTROID[p.id]; const s = w2s(c[0], c[1]); const fontPx = Math.max(10, 13 * Math.min(1, scale / 0.4));
+    ctx.font = `600 ${fontPx}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const yy = s.y - 32 * Math.max(0.55, scale * 1.25);
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(20,15,10,0.75)'; ctx.strokeText(p.name, s.x, yy);
     ctx.fillStyle = 'rgba(255,250,238,0.96)'; ctx.fillText(p.name, s.x, yy);
   }
@@ -1044,62 +894,43 @@ const Render = (function () {
 // ============================================================
 
 const UI = (function () {
-  let el = {};          // cachade DOM-element
-  let pending = null;   // { src, tgt, kind('friend'|'enemy') }
+  let el = {};
+  let pending = null;
 
   function $(id) { return document.getElementById(id); }
 
   function build() {
-    el = {
-      hud: $('hud'),
-      panel: $('panel'),
-      log: $('log'),
-      sheet: $('sheet'),
-      overlay: $('overlay'),
-      endTurn: $('endTurnBtn'),
-    };
+    el = { hud: $('hud'), panel: $('panel'), log: $('log'), sheet: $('sheet'), overlay: $('overlay'), endTurn: $('endTurnBtn') };
     el.endTurn.addEventListener('click', onEndTurn);
-
     const canvas = $('map');
-    canvas.addEventListener('pointerdown', e => {
-      const r = canvas.getBoundingClientRect();
-      onTap(e.clientX - r.left, e.clientY - r.top);
-    });
-
+    canvas.addEventListener('pointerdown', e => { const r = canvas.getBoundingClientRect(); onTap(e.clientX - r.left, e.clientY - r.top); });
     showIntro();
   }
 
-  // ---------- inmatning på kartan ----------
   function onTap(sx, sy) {
     if (Engine.state.over) return;
     const picked = Render.pickProvince(sx, sy);
     if (!picked) { Engine.state.selected = null; refresh(); return; }
-
     const cur = Engine.state.selected;
     const targets = Render.validTargets(cur);
-    if (cur && cur !== picked.id && targets[picked.id]) {
-      openSheet(cur, picked.id, targets[picked.id]);
-      return;
-    }
-    Engine.state.selected = picked.id;
-    closeSheet();
-    refresh();
+    if (cur && cur !== picked.id && targets[picked.id]) { openSheet(cur, picked.id, targets[picked.id]); return; }
+    Engine.state.selected = picked.id; closeSheet(); refresh();
   }
 
   // ---------- HUD ----------
   function renderHUD() {
     const f = Engine.fac('player');
-    const provinces = Engine.countOf('player');
+    const w = Engine.warriorsOf('player'), cap = Engine.supplyCap('player');
     const chips = [
-      ['🗓️', 'Tur', Engine.state.turn],
-      ['⚑', 'Land', `${provinces}/${CONFIG.PROVINCES_TO_WIN}`],
-      ['👑', 'Ära', `${f.renown}/${CONFIG.RENOWN_TO_WIN}`],
-      ['🪙', 'Silver', f.silver],
-      ['🌾', 'Mat', f.food],
-      ['⚔️', 'Krigare', Engine.warriorsOf('player')],
+      ['🗓️', 'Tur', Engine.state.turn, false],
+      ['⚑', 'Land', `${Engine.countOf('player')}/${CONFIG.PROVINCES_TO_WIN}`, false],
+      ['👑', 'Ära', `${f.renown}/${CONFIG.RENOWN_TO_WIN}`, false],
+      ['🪙', 'Silver', f.silver, false],
+      ['🌾', 'Mat', f.food, f.food <= 0],
+      ['⚔️', 'Hird', `${w}/${cap}`, w >= cap],
     ];
-    el.hud.innerHTML = chips.map(([ic, lab, val]) =>
-      `<div class="chip"><span class="ic">${ic}</span><span class="lab">${lab}</span><span class="val">${val}</span></div>`
+    el.hud.innerHTML = chips.map(([ic, lab, val, warn]) =>
+      `<div class="chip"><span class="ic">${ic}</span><span class="lab">${lab}</span><span class="val"${warn ? ' style="color:#ff8a76"' : ''}>${val}</span></div>`
     ).join('');
   }
 
@@ -1107,209 +938,119 @@ const UI = (function () {
   function renderPanel() {
     const sel = Engine.state.selected;
     if (!sel) {
-      el.panel.innerHTML = `<div class="hint">⚓ Tryck på en <b>röd</b> provins (din ätt) för att välja den — tryck sedan på en granne för att raida, erövra eller flytta.</div>`;
+      el.panel.innerHTML = `<div class="hint">⚓ Tryck på en <b>röd</b> region (din ätt) för att välja den — tryck sedan på en granne för att raida, erövra eller flytta.</div>`;
       return;
     }
-    const p = Engine.prov(sel);
-    const owner = Engine.fac(p.owner);
-    const mine = p.owner === 'player';
-
+    const p = Engine.prov(sel), owner = Engine.fac(p.owner), mine = p.owner === 'player', tier = Engine.tierOf(p);
     const stats = [
       ['⚔️', p.garrison, 'krigare'],
-      ['🏰', `nivå ${p.settlement}`, 'bebyggelse'],
+      ['🏰', tier.name, 'nivå ' + p.settlement],
       ['🛡️', Engine.effectiveDefense(p), 'försvar'],
-      ['🪙', p.income + p.settlement * CONFIG.SETTLEMENT_INCOME, 'inkomst'],
-      ['🌾', p.food, 'mat'],
+      ['🪙', Engine.provinceIncome(p), 'inkomst'],
+      ['🌾', Engine.provinceFood(p), 'mat'],
       ['💰', p.loot, 'rovbyte'],
     ];
-    const statsHtml = stats.map(([ic, v, lab]) =>
-      `<div class="stat"><span>${ic}</span><b>${v}</b><i>${lab}</i></div>`).join('');
+    const statsHtml = stats.map(([ic, v, lab]) => `<div class="stat"><span>${ic}</span><b>${v}</b><i>${lab}</i></div>`).join('');
 
     let actions = '';
     if (mine) {
       const f = Engine.fac('player');
-      const canRecruit = p.recruited < Engine.recruitCap(p) && f.silver >= CONFIG.RECRUIT_SILVER && f.food >= CONFIG.RECRUIT_FOOD;
+      const w = Engine.warriorsOf('player'), cap = Engine.supplyCap('player');
+      const canRecruit = p.recruited < Engine.recruitCap(p) && w + CONFIG.RECRUIT_BATCH <= cap && f.silver >= CONFIG.RECRUIT_SILVER && f.food >= CONFIG.RECRUIT_FOOD;
+      const next = p.settlement < CONFIG.MAX_SETTLEMENT ? TIERS[p.settlement + 1] : null;
       const cost = Engine.buildCost(p);
-      const canBuild = p.settlement < CONFIG.MAX_SETTLEMENT && f.silver >= cost;
+      const canBuild = !!next && f.silver >= cost;
+      const recruitHint = w >= cap ? '⚠️ Försörjningen full — bygg städer för fler krigare.'
+        : (p.acted ? '⏳ Denna region har redan fört krig denna tur.' : '➡️ Tryck på en lysande granne: <b style="color:#ff8a76">röd = anfall</b>, <b style="color:#8fdc8f">grön = flytta hit</b>.');
       actions =
         `<div class="actions">
-           <button class="act" data-a="recruit" ${canRecruit ? '' : 'disabled'}>
-             ⚒️ Rekrytera +${CONFIG.RECRUIT_BATCH}<small>${CONFIG.RECRUIT_SILVER}🪙 ${CONFIG.RECRUIT_FOOD}🌾</small></button>
-           <button class="act" data-a="build" ${canBuild ? '' : 'disabled'}>
-             ${p.settlement < CONFIG.MAX_SETTLEMENT ? `🏗️ Bygg nivå ${p.settlement + 1}<small>${cost}🪙</small>` : '🏰 Max nivå'}</button>
+           <button class="act" data-a="recruit" ${canRecruit ? '' : 'disabled'}>⚒️ Rekrytera +${CONFIG.RECRUIT_BATCH}<small>${CONFIG.RECRUIT_SILVER}🪙 ${CONFIG.RECRUIT_FOOD}🌾</small></button>
+           <button class="act" data-a="build" ${canBuild ? '' : 'disabled'}>${next ? `🏗️ ${next.name}<small>${cost}🪙</small>` : '🏰 Max nivå'}</button>
          </div>
-         <div class="hint">${p.acted ? '⏳ Denna provins har redan fört krig denna tur.' : '➡️ Tryck på en lysande granne: <b style="color:#ff8a76">röd = anfall</b>, <b style="color:#8fdc8f">grön = flytta hit</b>.'}</div>`;
+         <div class="hint">${recruitHint}</div>`;
     } else {
-      actions = `<div class="hint">Tillhör <b style="color:${owner.color}">${owner.name}</b>. Markera en av dina egna provinser intill för att anfalla.</div>`;
+      actions = `<div class="hint">Tillhör <b style="color:${owner.color}">${owner.name}</b>. Markera en av dina egna regioner intill för att anfalla.</div>`;
     }
 
     el.panel.innerHTML =
-      `<div class="ptitle">
-         <span class="dot" style="background:${owner.color}"></span>
-         <b>${p.name}</b>
-         <span class="ownr">${owner.name}${p.type === 'christian' ? ' ✝' : ''}</span>
-       </div>
-       <div class="stats">${statsHtml}</div>
-       ${actions}`;
-
-    el.panel.querySelectorAll('.act').forEach(b =>
-      b.addEventListener('click', () => onPanelAction(b.dataset.a, sel)));
+      `<div class="ptitle"><span class="dot" style="background:${owner.color}"></span><b>${p.name}</b><span class="ownr">${owner.name}${p.type === 'christian' ? ' ✝' : ''}</span></div>
+       <div class="stats">${statsHtml}</div>${actions}`;
+    el.panel.querySelectorAll('.act').forEach(b => b.addEventListener('click', () => onPanelAction(b.dataset.a, sel)));
   }
 
-  function onPanelAction(a, provId) {
-    const res = a === 'recruit' ? Engine.doRecruit(provId) : Engine.doBuild(provId);
-    if (res && !res.ok) toast(res.msg, 'bad');
-    refresh();
-  }
+  function onPanelAction(a, provId) { const res = a === 'recruit' ? Engine.doRecruit(provId) : Engine.doBuild(provId); if (res && !res.ok) toast(res.msg, 'bad'); refresh(); }
 
-  // ---------- actionsheet (raid / erövra / marschera) ----------
+  // ---------- actionsheet ----------
   function openSheet(srcId, tgtId, kind) {
     pending = { src: srcId, tgt: tgtId, kind };
-    const s = Engine.prov(srcId), t = Engine.prov(tgtId);
-    const max = s.garrison;
-    const owner = Engine.fac(t.owner);
-
-    const friend = kind === 'friend';
-    const title = friend
-      ? `→ Flytta till ${t.name}`
-      : `⚔️ Mål: ${t.name}`;
-
+    const s = Engine.prov(srcId), t = Engine.prov(tgtId), max = s.garrison, owner = Engine.fac(t.owner), friend = kind === 'friend';
+    const title = friend ? `→ Flytta till ${t.name}` : `⚔️ Mål: ${t.name}`;
     const targetInfo = friend
       ? `<div class="sinfo">${t.name} har ${t.garrison} krigare (din ätt).</div>`
-      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name}
-           &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b>
-           &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b></div>`;
-
+      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name} &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b> &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b></div>`;
     const btns = friend
       ? `<button class="big" data-do="march">→ Marschera hit</button>`
-      : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button>
-         <button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
-
+      : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button><button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
     el.sheet.innerHTML =
-      `<div class="sheet-card">
-         <div class="stitle">${title}</div>
-         ${targetInfo}
-         <div class="slider">
-           <label>Skicka krigare: <b id="sval">${max}</b> / ${max}</label>
-           <input type="range" id="srange" min="1" max="${max}" value="${max}">
-           <div class="odds" id="odds"></div>
-         </div>
-         <div class="sbtns">${btns}</div>
-         <button class="cancel" data-do="cancel">Avbryt</button>
-       </div>`;
+      `<div class="sheet-card"><div class="stitle">${title}</div>${targetInfo}
+         <div class="slider"><label>Skicka krigare: <b id="sval">${max}</b> / ${max}</label><input type="range" id="srange" min="1" max="${max}" value="${max}"><div class="odds" id="odds"></div></div>
+         <div class="sbtns">${btns}</div><button class="cancel" data-do="cancel">Avbryt</button></div>`;
     el.sheet.classList.remove('hidden');
-
     const range = $('srange'), valEl = $('sval'), odds = $('odds');
     function updateOdds() {
-      const send = +range.value;
-      valEl.textContent = send;
-      if (!friend) {
-        const def = Engine.effectiveDefense(t);
-        const ratio = def === 0 ? 99 : send / def;
-        const verdict = ratio >= 1.6 ? '🟢 stark övermakt' : ratio >= 1.0 ? '🟡 jämn kamp' : '🔴 underläge';
-        odds.innerHTML = `⚔️ ${send} mot 🛡️ ${def} &nbsp; ${verdict}`;
-      } else odds.textContent = '';
+      const send = +range.value; valEl.textContent = send;
+      if (!friend) { const def = Engine.effectiveDefense(t); const ratio = def === 0 ? 99 : send / def; const verdict = ratio >= 1.6 ? '🟢 stark övermakt' : ratio >= 1.0 ? '🟡 jämn kamp' : '🔴 underläge'; odds.innerHTML = `⚔️ ${send} mot 🛡️ ${def} &nbsp; ${verdict}`; } else odds.textContent = '';
     }
-    range.addEventListener('input', updateOdds);
-    updateOdds();
-
-    el.sheet.querySelectorAll('[data-do]').forEach(b =>
-      b.addEventListener('click', () => doSheet(b.dataset.do, +range.value)));
+    range.addEventListener('input', updateOdds); updateOdds();
+    el.sheet.querySelectorAll('[data-do]').forEach(b => b.addEventListener('click', () => doSheet(b.dataset.do, +range.value)));
   }
 
   function doSheet(action, send) {
-    const pn = pending;
-    closeSheet();
+    const pn = pending; closeSheet();
     if (!pn || action === 'cancel') { refresh(); return; }
     if (action === 'march') Engine.doMarch(pn.src, pn.tgt, send);
     if (action === 'raid') Engine.doRaid(pn.src, pn.tgt, send);
     if (action === 'invade') Engine.doInvade(pn.src, pn.tgt, send);
-    Engine.state.selected = null;
-    refresh();
+    Engine.state.selected = null; refresh();
   }
+  function closeSheet() { pending = null; el.sheet.classList.add('hidden'); el.sheet.innerHTML = ''; }
 
-  function closeSheet() {
-    pending = null;
-    el.sheet.classList.add('hidden');
-    el.sheet.innerHTML = '';
-  }
+  function renderLog() { const recent = Engine.state.log.slice(0, 4); el.log.innerHTML = recent.map(e => `<div class="logline ${e.kind}">${e.text}</div>`).join(''); }
+  function toast(text, kind) { Engine.pushLog(text, kind || 'info'); renderLog(); }
 
-  // ---------- händelselogg (flytande) ----------
-  function renderLog() {
-    const recent = Engine.state.log.slice(0, 4);
-    el.log.innerHTML = recent.map(e =>
-      `<div class="logline ${e.kind}">${e.text}</div>`).join('');
-  }
-
-  let toastTimer = null;
-  function toast(text, kind) {
-    Engine.pushLog(text, kind || 'info');
-    renderLog();
-  }
-
-  // ---------- tur ----------
   function onEndTurn() {
     if (Engine.state.over) return;
-    closeSheet();
-    el.endTurn.disabled = true;
-    el.endTurn.textContent = '⚔️ Fienderna drar ut...';
-    setTimeout(() => {
-      Engine.endPlayerTurn();
-      el.endTurn.disabled = false;
-      el.endTurn.innerHTML = '⛵ Avsluta tur';
-      refresh();
-      if (Engine.state.over) showGameOver();
-    }, 280);
+    closeSheet(); el.endTurn.disabled = true; el.endTurn.textContent = '⚔️ Fienderna drar ut...';
+    setTimeout(() => { Engine.endPlayerTurn(); el.endTurn.disabled = false; el.endTurn.innerHTML = '⛵ Avsluta tur'; refresh(); if (Engine.state.over) showGameOver(); }, 280);
   }
 
-  // ---------- overlays ----------
   function showIntro() {
     el.overlay.innerHTML =
-      `<div class="ov-card">
-         <h1>JARL</h1>
-         <p class="sub">Vikingatåg över Norden · 793 e.Kr</p>
+      `<div class="ov-card"><h1>JARL</h1><p class="sub">Vikingatåg över Norden · 793 e.Kr</p>
          <ul>
            <li>🔴 Du leder <b>Ulfssons ätt</b> i Vestfold och Hordaland.</li>
-           <li>⚒️ <b>Rekrytera</b> krigare och <b>bygg</b> upp dina bygder.</li>
-           <li>🔥 <b>Raida</b> kristna kloster (✝) för silver och ära.</li>
-           <li>⚔️ <b>Erövra</b> grannar — landväg eller över hav (streckad linje).</li>
-           <li>👑 Vinn genom <b>${CONFIG.RENOWN_TO_WIN} ära</b> eller <b>${CONFIG.PROVINCES_TO_WIN} provinser</b>.</li>
+           <li>🌾 <b>Mat föder din här</b> — du kan inte hålla fler krigare än du kan föda. Svält ger desertering.</li>
+           <li>🏗️ <b>Bygg städer</b> i 6 nivåer (Torp→Fästning) för mer inkomst, mat och försvar.</li>
+           <li>🔥 <b>Raida</b> kristna riken (✝) för silver, mat och ära.</li>
+           <li>⚔️ <b>Erövra</b> grannregioner — landväg eller över hav.</li>
+           <li>👑 Vinn genom <b>${CONFIG.RENOWN_TO_WIN} ära</b> eller <b>${CONFIG.PROVINCES_TO_WIN} regioner</b>.</li>
          </ul>
-         <button class="big invade" id="startBtn">⛵ Sätt segel</button>
-       </div>`;
+         <button class="big invade" id="startBtn">⛵ Sätt segel</button></div>`;
     el.overlay.classList.remove('hidden');
-    $('startBtn').addEventListener('click', () => {
-      el.overlay.classList.add('hidden');
-      el.overlay.innerHTML = '';
-    });
+    $('startBtn').addEventListener('click', () => { el.overlay.classList.add('hidden'); el.overlay.innerHTML = ''; });
   }
 
   function showGameOver() {
     const won = Engine.state.won;
     el.overlay.innerHTML =
-      `<div class="ov-card">
-         <h1>${won ? '👑 SEGER' : '☠️ NEDERLAG'}</h1>
-         <p class="sub">${won ? 'Skalderna sjunger om Ulfssons ätt i evig tid.' : 'Din saga är till ända.'}</p>
-         <div class="ov-stats">
-           Tur ${Engine.state.turn} · 👑 ${Engine.fac('player').renown} ära · ⚑ ${Engine.countOf('player')} provinser
-         </div>
-         <button class="big invade" id="againBtn">↻ Spela igen</button>
-       </div>`;
+      `<div class="ov-card"><h1>${won ? '👑 SEGER' : '☠️ NEDERLAG'}</h1><p class="sub">${won ? 'Skalderna sjunger om Ulfssons ätt i evig tid.' : 'Din saga är till ända.'}</p>
+         <div class="ov-stats">Tur ${Engine.state.turn} · 👑 ${Engine.fac('player').renown} ära · ⚑ ${Engine.countOf('player')} regioner</div>
+         <button class="big invade" id="againBtn">↻ Spela igen</button></div>`;
     el.overlay.classList.remove('hidden');
-    $('againBtn').addEventListener('click', () => {
-      el.overlay.classList.add('hidden');
-      el.overlay.innerHTML = '';
-      Engine.init();
-      Render.resize();
-      refresh();
-    });
+    $('againBtn').addEventListener('click', () => { el.overlay.classList.add('hidden'); el.overlay.innerHTML = ''; Engine.init(); Render.resize(); refresh(); });
   }
 
-  function refresh() {
-    renderHUD();
-    renderPanel();
-    renderLog();
-  }
+  function refresh() { renderHUD(); renderPanel(); renderLog(); }
 
   return { build, onTap, refresh };
 })();
