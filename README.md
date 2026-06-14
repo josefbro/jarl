@@ -53,20 +53,30 @@ låter långskeppen slå till över hav — t.ex. Vestfold → Northumbria (Lind
 ## Arkitektur
 
 ```
-index.html        layout (HUD, karta, panel, sheet, overlay)
-style.css         mobil-first nordisk stil
-js/config.js      all speldata: provinser, ätter, kanter, landmassor, konstanter
-js/engine.js      tillstånd, ekonomi, strid, turordning, AI
-js/render.js      canvas-rendering + träffdetektering (skärm↔värld)
-js/ui.js          HUD, paneler, actionsheet, overlays, inmatning
-js/main.js        uppstart + renderingsloop
+index.html            layout (HUD, karta, panel, sheet, overlay)
+style.css             mobil-first nordisk stil
+assets/europe.geojson riktig kustlinje (Natural Earth 1:50m land, public domain,
+                      klippt till NV-Europa)
+js/config.js          all speldata: provinser med VERKLIGA lng/lat, ätter, kanter, konstanter
+js/geo.js             Mercator-projektion + GeoJSON-parser + Voronoi-regioner kring
+                      städernas verkliga lägen, klippta mot kusten (DOM-fri)
+js/engine.js          tillstånd, ekonomi, strid (haversine-sjöavstånd), turordning, AI
+js/render.js          canvas-rendering: projicerad kustlinje, regiontinter, städer
+js/ui.js              HUD, paneler, actionsheet, overlays, inmatning
+js/main.js            hämtar assets/europe.geojson, init, renderingsloop
+build.sh              bygger standalone.html (inline:ar geografin + all kod)
 ```
+
+Kartan ritas från **riktig geografi**: `geo.js` projicerar GeoJSON-koordinaterna med
+Mercator till spelets världsrymd (ren Canvas, ingen d3-beroende), och varje provins
+(Vestfold, Northumbria, Wessex …) sitter på sin faktiska plats. Regionytorna är Voronoi
+kring städerna, klippta mot den verkliga kustlinjen; land utanför spelytan visas grått.
 
 ## Klart hittills
 
 - **RISK/Civ-kärna:** regionkarta (Voronoi-celler med gränser), raid, erövra, marschera.
-- **Realistisk geografi:** riktiga kustlinjer + resten av Europa grått som kontext;
-  geografiskt vettig angreppslogik (verifierad sammanhängande graf).
+- **Riktig projicerad geografi:** verkliga kustlinjer ur GeoJSON, provinser på sina
+  faktiska koordinater, sjöavstånd i km; resten av Europa grått som kontext.
 - **Civ-ekonomi:** mat-försörjningstak som begränsar arméstorlek (ingen passiv mega-armé),
   6 byggnivåer Torp→Fästning, AI som investerar i städer och agerar.
 
