@@ -1,8 +1,8 @@
 // ============================================================
 //  JARL — config & speldata (vikingatidens norra Europa)
-//  Realistiska kustlinjer (LANDS). Resten av Europa visas grått
-//  som icke-spelbar kontext (CONTEXT_LANDS). Regioner = Voronoi-
-//  celler ur städernas frö-punkter, klippta mot landmassan.
+//  ~26 regioner. Kristna rikena är SEPARATA kungariken som krigar
+//  mot varandra. Kustprovinser (coastal) kan nås av sjöraid utan
+//  att gränsa. Resten av Europa visas grått (CONTEXT_LANDS).
 // ============================================================
 
 const CONFIG = {
@@ -14,27 +14,33 @@ const CONFIG = {
   RECRUIT_FOOD: 5,
   MAX_SETTLEMENT: 5,
 
-  // försörjning: arméns storlek begränsas HÅRT av matproduktionen
-  BASE_SUPPLY: 12,        // grund-försörjning per ätt (liten marginal)
-  FOOD_PER_WARRIOR: 1,    // mat/krigare/tur i underhåll
-  OVERCAP_DESERT: 0.5,    // andel av överskottet (över taket) som deserterar/tur
+  // försörjning
+  BASE_SUPPLY: 12,
+  FOOD_PER_WARRIOR: 1,
+  OVERCAP_DESERT: 0.5,
+
+  // sjöraid: räckvidd (världsenheter) för långskepp att raida kust utan att gränsa
+  NAVAL_RAID_RANGE: 470,
 
   RENOWN_TO_WIN: 1200,
-  PROVINCES_TO_WIN: 12,
+  PROVINCES_TO_WIN: 14,
 };
 
-// kind: player | viking (AI-ätt) | christian (rikt rovbyte, defensiv) | neutral
+// kind: player | viking | christian (separata kungariken) | neutral
 const FACTIONS = [
-  { id:'player',    name:'Ulfssons ätt',   short:'Du',    color:'#c0392b', kind:'player'    },
-  { id:'ravnsson',  name:'Ravnssons ätt',  short:'Ravn',  color:'#2c6e8f', kind:'viking'    },
-  { id:'bjornsson', name:'Björnssons ätt', short:'Björn', color:'#7a9a3a', kind:'viking'    },
-  { id:'christian', name:'Kristna riken',  short:'Kors',  color:'#9a7b46', kind:'christian' },
-  { id:'neutral',   name:'Fria bygder',    short:'Fri',   color:'#8d8674', kind:'neutral'   },
+  { id:'player',     name:'Ulfssons ätt',   short:'Du',    color:'#c0392b', kind:'player'    },
+  { id:'ravnsson',   name:'Ravnssons ätt',  short:'Ravn',  color:'#2c6e8f', kind:'viking'    },
+  { id:'bjornsson',  name:'Björnssons ätt', short:'Björn', color:'#7a9a3a', kind:'viking'    },
+  { id:'northumbria',name:'Northumbria',    short:'Nor',   color:'#7d5fa0', kind:'christian' },
+  { id:'mercia',     name:'Mercia',         short:'Mer',   color:'#c79a2e', kind:'christian' },
+  { id:'wessex',     name:'Wessex',         short:'Wes',   color:'#b23a48', kind:'christian' },
+  { id:'dublin',     name:'Irerna',         short:'Ire',   color:'#2f8f6f', kind:'christian' },
+  { id:'frankia',    name:'Frankerriket',   short:'Frank', color:'#456fb0', kind:'christian' },
+  { id:'saxony',     name:'Sachsen',        short:'Sax',   color:'#9a7038', kind:'christian' },
+  { id:'neutral',    name:'Fria bygder',    short:'Fri',   color:'#8d8674', kind:'neutral'   },
 ];
 
-// Bebyggelse-nivåer. cost = silver för att uppgradera TILL nivån.
-// income = silver/tur, food = mat/tur (= försörjning), def = försvarstillägg,
-// recruitCap = krigare rekryterbara per tur i provinsen.
+// Bebyggelse-nivåer (cost = silver för att uppgradera TILL nivån).
 const TIERS = [
   { level:0, name:'Torp',     cost:0,   income:0,  food:0,  def:0.00, recruitCap:5  },
   { level:1, name:'By',       cost:60,  income:4,  food:5,  def:0.18, recruitCap:8  },
@@ -44,70 +50,72 @@ const TIERS = [
   { level:5, name:'Fästning', cost:540, income:36, food:30, def:1.45, recruitCap:30 },
 ];
 
-// land = landmassa-grupp. (x,y) = stadens läge + Voronoi-frö (geografiskt placerat).
-// income/food = landets bas; TIERS adderas ovanpå efter bebyggelsenivå.
+// coastal=true => kan nås av sjöraid (och nå ut med långskepp).
 const PROVINCES = [
-  // --- Skandinaviska halvön (Norge i väster, Sverige i öster) ---
-  { id:'trondelag', name:'Trøndelag',  land:'scandia', x:505, y:215, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
-  { id:'hordaland', name:'Hordaland',  land:'scandia', x:470, y:360, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
-  { id:'vestfold',  name:'Vestfold',   land:'scandia', x:525, y:475, owner:'player',    type:'norse',     garrison:12, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
-  { id:'uppland',   name:'Uppland',    land:'scandia', x:650, y:340, owner:'bjornsson', type:'norse',     garrison:11, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
-  { id:'gotaland',  name:'Götaland',   land:'scandia', x:600, y:520, owner:'bjornsson', type:'norse',     garrison:7,  settlement:0, income:9,  food:6,  loot:35,  lootMax:50,  def:1.05 },
-  { id:'skane',     name:'Skåne',      land:'scandia', x:548, y:575, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:10, food:7,  loot:40,  lootMax:55,  def:1.05 },
-  // --- Danmark: Jylland (halvö av kontinenten) + Själland (ö) ---
-  { id:'jylland',   name:'Jylland',    land:'continent', x:428, y:648, owner:'ravnsson', type:'norse',    garrison:8,  settlement:0, income:10, food:7,  loot:35,  lootMax:55,  def:1.05 },
-  { id:'sjaelland', name:'Sjælland',   land:'zealand',   x:528, y:632, owner:'ravnsson', type:'norse',    garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
+  // --- Skandinaviska halvön ---
+  { id:'halogaland',  name:'Hålogaland', land:'scandia', x:560, y:135, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:8,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'trondelag',   name:'Trøndelag',  land:'scandia', x:505, y:225, owner:'player',    type:'norse', coastal:true,  garrison:7,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
+  { id:'hordaland',   name:'Hordaland',  land:'scandia', x:470, y:360, owner:'player',    type:'norse', coastal:true,  garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'vestfold',    name:'Vestfold',   land:'scandia', x:525, y:478, owner:'player',    type:'norse', coastal:true,  garrison:12, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'uppland',     name:'Uppland',    land:'scandia', x:652, y:335, owner:'bjornsson', type:'norse', coastal:true,  garrison:11, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'ostergotland',name:'Östergötland',land:'scandia',x:646, y:458, owner:'neutral',   type:'norse', coastal:true,  garrison:6,  settlement:0, income:10, food:6,  loot:38,  lootMax:52,  def:1.05 },
+  { id:'gotaland',    name:'Götaland',   land:'scandia', x:594, y:520, owner:'bjornsson', type:'norse', coastal:true,  garrison:7,  settlement:0, income:9,  food:6,  loot:35,  lootMax:50,  def:1.05 },
+  { id:'skane',       name:'Skåne',      land:'scandia', x:548, y:578, owner:'neutral',   type:'norse', coastal:true,  garrison:6,  settlement:0, income:10, food:7,  loot:40,  lootMax:55,  def:1.05 },
+  // --- Danmark ---
+  { id:'jylland',     name:'Jylland',    land:'continent', x:428, y:648, owner:'ravnsson', type:'norse', coastal:true, garrison:8,  settlement:0, income:10, food:7,  loot:35,  lootMax:55,  def:1.05 },
+  { id:'sjaelland',   name:'Sjælland',   land:'zealand',   x:528, y:632, owner:'ravnsson', type:'norse', coastal:true, garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
   // --- Gotland ---
-  { id:'gotland',   name:'Gotland',    land:'gotland', x:756, y:486, owner:'neutral',   type:'island',    garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
+  { id:'gotland',     name:'Gotland',    land:'gotland', x:756, y:486, owner:'neutral',   type:'island', coastal:true, garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
   // --- Brittiska öarna ---
-  { id:'orkney',     name:'Orkneyöarna', land:'orkney',  x:145, y:92,  owner:'neutral',   type:'island',    garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
-  { id:'northumbria',name:'Northumbria',  land:'britain', x:215, y:330, owner:'christian', type:'christian', garrison:10, settlement:1, income:13, food:7,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne!
-  { id:'mercia',     name:'Mercia',       land:'britain', x:180, y:440, owner:'christian', type:'christian', garrison:13, settlement:1, income:14, food:9,  loot:160, lootMax:180, def:1.20 },
-  { id:'eastanglia', name:'East Anglia',  land:'britain', x:235, y:452, owner:'christian', type:'christian', garrison:10, settlement:1, income:13, food:8,  loot:170, lootMax:190, def:1.10 },
-  { id:'wessex',     name:'Wessex',       land:'britain', x:190, y:540, owner:'christian', type:'christian', garrison:16, settlement:2, income:14, food:9,  loot:200, lootMax:220, def:1.30 },
-  { id:'dublin',     name:'Dublin',       land:'ireland', x:72,  y:432, owner:'christian', type:'christian', garrison:8,  settlement:1, income:11, food:6,  loot:150, lootMax:170, def:1.10 },
-  // --- Kontinenten (Frankerriket i väster, Sachsen i öster) ---
-  { id:'frisia',     name:'Frisia',       land:'continent', x:345, y:822, owner:'christian', type:'christian', garrison:12, settlement:1, income:13, food:8,  loot:140, lootMax:160, def:1.10 },
-  { id:'saxony',     name:'Sachsen',      land:'continent', x:612, y:828, owner:'christian', type:'christian', garrison:14, settlement:1, income:13, food:9,  loot:150, lootMax:170, def:1.20 },
-  { id:'frankia',    name:'Frankerriket', land:'continent', x:255, y:850, owner:'christian', type:'christian', garrison:18, settlement:2, income:16, food:10, loot:230, lootMax:250, def:1.35 },
+  { id:'orkney',      name:'Orkneyöarna', land:'orkney',  x:145, y:92,  owner:'neutral',   type:'island', coastal:true, garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
+  { id:'pictland',    name:'Piktland',   land:'britain', x:152, y:200, owner:'northumbria', type:'christian', coastal:true,  garrison:7,  settlement:0, income:10, food:5,  loot:90,  lootMax:110, def:1.10 }, // Iona
+  { id:'northumbria', name:'Northumbria',land:'britain', x:215, y:335, owner:'northumbria', type:'christian', coastal:true,  garrison:10, settlement:1, income:13, food:7,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne
+  { id:'gwynedd',     name:'Gwynedd',    land:'britain', x:138, y:418, owner:'mercia',      type:'christian', coastal:true,  garrison:8,  settlement:0, income:10, food:6,  loot:110, lootMax:130, def:1.15 }, // Wales
+  { id:'mercia',      name:'Mercia',     land:'britain', x:190, y:448, owner:'mercia',      type:'christian', coastal:false, garrison:13, settlement:1, income:14, food:9,  loot:160, lootMax:180, def:1.20 },
+  { id:'eastanglia',  name:'East Anglia',land:'britain', x:250, y:454, owner:'mercia',      type:'christian', coastal:true,  garrison:10, settlement:1, income:13, food:8,  loot:170, lootMax:190, def:1.10 },
+  { id:'kent',        name:'Kent',       land:'britain', x:270, y:502, owner:'wessex',      type:'christian', coastal:true,  garrison:9,  settlement:1, income:13, food:7,  loot:150, lootMax:170, def:1.15 },
+  { id:'wessex',      name:'Wessex',     land:'britain', x:186, y:548, owner:'wessex',      type:'christian', coastal:true,  garrison:16, settlement:2, income:14, food:9,  loot:200, lootMax:220, def:1.30 },
+  // --- Irland ---
+  { id:'dublin',      name:'Dublin',     land:'ireland', x:74,  y:430, owner:'dublin',      type:'christian', coastal:true,  garrison:8,  settlement:1, income:11, food:6,  loot:150, lootMax:170, def:1.10 },
+  { id:'munster',     name:'Munster',    land:'ireland', x:52,  y:488, owner:'dublin',      type:'christian', coastal:true,  garrison:8,  settlement:0, income:10, food:6,  loot:130, lootMax:150, def:1.10 },
+  // --- Kontinenten ---
+  { id:'frisia',      name:'Frisia',     land:'continent', x:392, y:778, owner:'frankia',  type:'christian', coastal:true,  garrison:11, settlement:1, income:13, food:8,  loot:140, lootMax:160, def:1.10 },
+  { id:'neustria',    name:'Neustrien',  land:'continent', x:245, y:825, owner:'frankia',  type:'christian', coastal:true,  garrison:12, settlement:1, income:15, food:9,  loot:190, lootMax:210, def:1.20 },
+  { id:'frankia',     name:'Austrasien', land:'continent', x:332, y:862, owner:'frankia',  type:'christian', coastal:false, garrison:18, settlement:2, income:16, food:10, loot:230, lootMax:250, def:1.35 },
+  { id:'saxony',      name:'Sachsen',    land:'continent', x:560, y:826, owner:'saxony',   type:'christian', coastal:false, garrison:14, settlement:1, income:13, food:9,  loot:150, lootMax:170, def:1.20 },
+  { id:'bayern',      name:'Bayern',     land:'continent', x:688, y:858, owner:'saxony',   type:'christian', coastal:false, garrison:15, settlement:2, income:15, food:9,  loot:170, lootMax:190, def:1.25 },
 ];
 
-// [a, b, sea?] — realistisk angreppslogik (verifierad sammanhängande graf, grad>=2)
-// sea=true => långskeppsled över vatten; false => landgräns med väg
+// Landgränser (sea=false) + sjövägar för erövring/marsch över kort vatten (sea=true).
+// Sjöraid över längre avstånd kräver INGEN kant — se CONFIG.NAVAL_RAID_RANGE.
 const EDGES = [
-  ['trondelag','hordaland',false],   // norsk västkust
-  ['hordaland','vestfold',false],    // norsk sydkust
-  ['trondelag','uppland',false],     // över fjällryggen
-  ['vestfold','gotaland',false],     // Bohuslän
-  ['uppland','gotaland',false],      // inre Sverige
-  ['gotaland','skane',false],        // sydsvensk landfront
-  ['uppland','gotland',true],        // Roslagen–Gotland (Östersjön)
-  ['gotland','gotaland',true],       // Gotland–östgötakusten
-  ['skane','sjaelland',true],        // Öresund
-  ['gotaland','jylland',true],       // Kattegatt
-  ['jylland','sjaelland',true],      // Stora Bält
-  ['jylland','frisia',false],        // Jyllands rot mot Frisien (land)
-  ['hordaland','orkney',true],       // Nordsjön (kanonisk norsk utfärd)
-  ['vestfold','northumbria',true],   // Lindisfarne-leden 793
-  ['orkney','northumbria',true],     // längs Skottlands ostkust
-  ['northumbria','mercia',false],
-  ['mercia','eastanglia',false],
-  ['mercia','wessex',false],
-  ['eastanglia','wessex',false],
-  ['eastanglia','northumbria',false],// Britanniens ostkust (land)
-  ['northumbria','dublin',true],     // runt Skottland till Dublin
-  ['dublin','mercia',true],          // Irländska sjön
-  ['dublin','wessex',true],          // Bristolkanalen
-  ['wessex','frankia',true],         // Engelska kanalen
-  ['eastanglia','frisia',true],      // Nordsjön (frisisk-engelsk axel)
-  ['frisia','saxony',false],
-  ['frisia','frankia',false],        // Rhenmynningen
-  ['frankia','saxony',false],
-  ['vestfold','jylland',true],       // Skagerrak
-  ['skane','jylland',true],          // Kattegatt (dansk kärna)
+  // Skandinavien (land)
+  ['halogaland','trondelag',false],['halogaland','uppland',false],['trondelag','hordaland',false],
+  ['trondelag','uppland',false],['hordaland','vestfold',false],['vestfold','gotaland',false],
+  ['uppland','ostergotland',false],['uppland','gotaland',false],['ostergotland','gotaland',false],
+  ['ostergotland','skane',false],['gotaland','skane',false],
+  // Britannien (land)
+  ['pictland','northumbria',false],['pictland','gwynedd',false],['northumbria','mercia',false],
+  ['northumbria','eastanglia',false],['gwynedd','mercia',false],['mercia','eastanglia',false],
+  ['mercia','wessex',false],['eastanglia','kent',false],['eastanglia','wessex',false],
+  ['kent','wessex',false],['gwynedd','wessex',false],
+  // Irland (land)
+  ['dublin','munster',false],
+  // Kontinenten (land)
+  ['jylland','frisia',false],['frisia','neustria',false],['frisia','saxony',false],
+  ['neustria','frankia',false],['frankia','saxony',false],['frankia','bayern',false],['saxony','bayern',false],
+  // Östersjön / Kattegatt / sundsstråk (sea)
+  ['uppland','gotland',true],['gotaland','gotland',true],['ostergotland','gotland',true],
+  ['skane','sjaelland',true],['jylland','sjaelland',true],['gotaland','jylland',true],
+  ['vestfold','jylland',true],['skane','jylland',true],
+  // Nordsjön / Skottland (sea)
+  ['hordaland','orkney',true],['orkney','pictland',true],['orkney','northumbria',true],['vestfold','northumbria',true],
+  // Irländska sjön / Engelska kanalen / Nordsjö-axeln (sea)
+  ['dublin','gwynedd',true],['munster','wessex',true],['eastanglia','frisia',true],
+  ['kent','neustria',true],['wessex','neustria',true],
 ];
 
-// Spelbara landmassor med realistiska kustlinjer (världskoord). river = flodbana.
+// Spelbara landmassor med realistiska kustlinjer.
 const LANDS = {
   scandia: {
     poly: [[525,598],[500,565],[508,545],[486,520],[498,500],[472,470],[486,450],[455,420],[470,400],
@@ -122,18 +130,10 @@ const LANDS = {
            [132,350],[108,300],[126,250],[100,200],[126,165]],
     river: [[180,250],[210,340],[185,430],[214,512]],
   },
-  ireland: {
-    poly: [[60,338],[95,352],[112,402],[106,462],[78,512],[44,520],[22,470],[16,402],[30,356]],
-  },
-  orkney: {
-    poly: [[118,70],[168,74],[172,108],[120,112]],
-  },
-  gotland: {
-    poly: [[732,452],[778,460],[780,512],[734,518]],
-  },
-  zealand: {
-    poly: [[498,602],[556,598],[572,636],[540,668],[498,656]],
-  },
+  ireland: { poly: [[60,338],[95,352],[112,402],[106,462],[78,512],[44,520],[22,470],[16,402],[30,356]] },
+  orkney:  { poly: [[118,70],[168,74],[172,108],[120,112]] },
+  gotland: { poly: [[732,452],[778,460],[780,512],[734,518]] },
+  zealand: { poly: [[498,602],[556,598],[572,636],[540,668],[498,656]] },
   continent: {
     poly: [[428,560],[454,596],[470,656],[472,716],[560,756],[652,772],[742,792],[776,836],[706,886],
            [516,896],[330,892],[206,860],[196,802],[286,772],[366,762],[398,706],[408,648],[412,600]],
@@ -141,7 +141,7 @@ const LANDS = {
   },
 };
 
-// Icke-spelbar kontext: resten av Europa, ritas grått (inga provinser/städer).
+// Icke-spelbar kontext: resten av Europa, ritas grått.
 const CONTEXT_LANDS = [
   { label:'Gardarike',                labelPos:[890,250],  poly:[[812,84],[900,98],[968,140],[998,225],[995,330],[966,420],[922,452],[860,430],[820,360],[792,300],[800,180]] },
   { label:'Austrvegr',                labelPos:[895,556],  poly:[[792,476],[864,486],[940,500],[1000,548],[1000,628],[908,624],[820,610],[792,560],[800,516]] },

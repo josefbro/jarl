@@ -88,6 +88,12 @@ const Render = (function () {
     const res = {}; if (!selId) return res;
     const p = Engine.prov(selId); if (!p || p.owner !== 'player' || p.acted || p.garrison <= 0) return res;
     Engine.neighbors(selId).forEach(n => { res[n.id] = (Engine.prov(n.id).owner === 'player') ? 'friend' : 'enemy'; });
+    if (p.coastal) {   // sjöraid: nå kust utan att gränsa
+      Object.values(Engine.state.provinces).forEach(q => {
+        if (q.id === selId || res[q.id] || !q.coastal || q.owner === 'player') return;
+        if (Engine.navalDist(p, q) <= CONFIG.NAVAL_RAID_RANGE) res[q.id] = 'naval';
+      });
+    }
     return res;
   }
 
@@ -199,10 +205,13 @@ const Render = (function () {
     const sel = Engine.state.selected; if (!sel) return;
     const pulse = 0.5 + 0.5 * Math.sin(t * 4); const targets = validTargets(sel);
     Object.keys(targets).forEach(id => {
-      const cell = CELLS[id]; if (!cell) return; const enemy = targets[id] === 'enemy';
-      ctx.save(); ctx.beginPath(); pathPolyW(cell);
-      ctx.fillStyle = enemy ? `rgba(255,90,70,${0.10 + pulse * 0.16})` : `rgba(120,225,120,${0.10 + pulse * 0.14})`; ctx.fill();
-      ctx.lineWidth = 2.5 + pulse * 1.5; ctx.strokeStyle = enemy ? `rgba(255,120,95,${0.7 + pulse * 0.3})` : `rgba(150,240,150,0.9)`; ctx.stroke(); ctx.restore();
+      const cell = CELLS[id]; if (!cell) return; const k = targets[id];
+      let fill, stroke, lw, dash = false;
+      if (k === 'enemy') { fill = `rgba(255,90,70,${0.10 + pulse * 0.16})`; stroke = `rgba(255,120,95,${0.7 + pulse * 0.3})`; lw = 2.5 + pulse * 1.5; }
+      else if (k === 'friend') { fill = `rgba(120,225,120,${0.10 + pulse * 0.14})`; stroke = `rgba(150,240,150,0.9)`; lw = 2.5 + pulse * 1.5; }
+      else { fill = `rgba(90,190,235,${0.05 + pulse * 0.09})`; stroke = `rgba(110,205,245,${0.5 + pulse * 0.3})`; lw = 2 + pulse; dash = true; } // sjöraid
+      ctx.save(); ctx.beginPath(); pathPolyW(cell); ctx.fillStyle = fill; ctx.fill();
+      ctx.lineWidth = lw; ctx.strokeStyle = stroke; if (dash) ctx.setLineDash([5, 5]); ctx.stroke(); ctx.restore();
     });
     const cell = CELLS[sel]; if (cell) { ctx.save(); ctx.beginPath(); pathPolyW(cell); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,224,130,${0.75 + pulse * 0.25})`; ctx.stroke(); ctx.restore(); }
   }

@@ -204,9 +204,9 @@ html, body {
 <script>
 // ============================================================
 //  JARL — config & speldata (vikingatidens norra Europa)
-//  Realistiska kustlinjer (LANDS). Resten av Europa visas grått
-//  som icke-spelbar kontext (CONTEXT_LANDS). Regioner = Voronoi-
-//  celler ur städernas frö-punkter, klippta mot landmassan.
+//  ~26 regioner. Kristna rikena är SEPARATA kungariken som krigar
+//  mot varandra. Kustprovinser (coastal) kan nås av sjöraid utan
+//  att gränsa. Resten av Europa visas grått (CONTEXT_LANDS).
 // ============================================================
 
 const CONFIG = {
@@ -218,27 +218,33 @@ const CONFIG = {
   RECRUIT_FOOD: 5,
   MAX_SETTLEMENT: 5,
 
-  // försörjning: arméns storlek begränsas HÅRT av matproduktionen
-  BASE_SUPPLY: 12,        // grund-försörjning per ätt (liten marginal)
-  FOOD_PER_WARRIOR: 1,    // mat/krigare/tur i underhåll
-  OVERCAP_DESERT: 0.5,    // andel av överskottet (över taket) som deserterar/tur
+  // försörjning
+  BASE_SUPPLY: 12,
+  FOOD_PER_WARRIOR: 1,
+  OVERCAP_DESERT: 0.5,
+
+  // sjöraid: räckvidd (världsenheter) för långskepp att raida kust utan att gränsa
+  NAVAL_RAID_RANGE: 470,
 
   RENOWN_TO_WIN: 1200,
-  PROVINCES_TO_WIN: 12,
+  PROVINCES_TO_WIN: 14,
 };
 
-// kind: player | viking (AI-ätt) | christian (rikt rovbyte, defensiv) | neutral
+// kind: player | viking | christian (separata kungariken) | neutral
 const FACTIONS = [
-  { id:'player',    name:'Ulfssons ätt',   short:'Du',    color:'#c0392b', kind:'player'    },
-  { id:'ravnsson',  name:'Ravnssons ätt',  short:'Ravn',  color:'#2c6e8f', kind:'viking'    },
-  { id:'bjornsson', name:'Björnssons ätt', short:'Björn', color:'#7a9a3a', kind:'viking'    },
-  { id:'christian', name:'Kristna riken',  short:'Kors',  color:'#9a7b46', kind:'christian' },
-  { id:'neutral',   name:'Fria bygder',    short:'Fri',   color:'#8d8674', kind:'neutral'   },
+  { id:'player',     name:'Ulfssons ätt',   short:'Du',    color:'#c0392b', kind:'player'    },
+  { id:'ravnsson',   name:'Ravnssons ätt',  short:'Ravn',  color:'#2c6e8f', kind:'viking'    },
+  { id:'bjornsson',  name:'Björnssons ätt', short:'Björn', color:'#7a9a3a', kind:'viking'    },
+  { id:'northumbria',name:'Northumbria',    short:'Nor',   color:'#7d5fa0', kind:'christian' },
+  { id:'mercia',     name:'Mercia',         short:'Mer',   color:'#c79a2e', kind:'christian' },
+  { id:'wessex',     name:'Wessex',         short:'Wes',   color:'#b23a48', kind:'christian' },
+  { id:'dublin',     name:'Irerna',         short:'Ire',   color:'#2f8f6f', kind:'christian' },
+  { id:'frankia',    name:'Frankerriket',   short:'Frank', color:'#456fb0', kind:'christian' },
+  { id:'saxony',     name:'Sachsen',        short:'Sax',   color:'#9a7038', kind:'christian' },
+  { id:'neutral',    name:'Fria bygder',    short:'Fri',   color:'#8d8674', kind:'neutral'   },
 ];
 
-// Bebyggelse-nivåer. cost = silver för att uppgradera TILL nivån.
-// income = silver/tur, food = mat/tur (= försörjning), def = försvarstillägg,
-// recruitCap = krigare rekryterbara per tur i provinsen.
+// Bebyggelse-nivåer (cost = silver för att uppgradera TILL nivån).
 const TIERS = [
   { level:0, name:'Torp',     cost:0,   income:0,  food:0,  def:0.00, recruitCap:5  },
   { level:1, name:'By',       cost:60,  income:4,  food:5,  def:0.18, recruitCap:8  },
@@ -248,70 +254,72 @@ const TIERS = [
   { level:5, name:'Fästning', cost:540, income:36, food:30, def:1.45, recruitCap:30 },
 ];
 
-// land = landmassa-grupp. (x,y) = stadens läge + Voronoi-frö (geografiskt placerat).
-// income/food = landets bas; TIERS adderas ovanpå efter bebyggelsenivå.
+// coastal=true => kan nås av sjöraid (och nå ut med långskepp).
 const PROVINCES = [
-  // --- Skandinaviska halvön (Norge i väster, Sverige i öster) ---
-  { id:'trondelag', name:'Trøndelag',  land:'scandia', x:505, y:215, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
-  { id:'hordaland', name:'Hordaland',  land:'scandia', x:470, y:360, owner:'player',    type:'norse',     garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
-  { id:'vestfold',  name:'Vestfold',   land:'scandia', x:525, y:475, owner:'player',    type:'norse',     garrison:12, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
-  { id:'uppland',   name:'Uppland',    land:'scandia', x:650, y:340, owner:'bjornsson', type:'norse',     garrison:11, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
-  { id:'gotaland',  name:'Götaland',   land:'scandia', x:600, y:520, owner:'bjornsson', type:'norse',     garrison:7,  settlement:0, income:9,  food:6,  loot:35,  lootMax:50,  def:1.05 },
-  { id:'skane',     name:'Skåne',      land:'scandia', x:548, y:575, owner:'neutral',   type:'norse',     garrison:6,  settlement:0, income:10, food:7,  loot:40,  lootMax:55,  def:1.05 },
-  // --- Danmark: Jylland (halvö av kontinenten) + Själland (ö) ---
-  { id:'jylland',   name:'Jylland',    land:'continent', x:428, y:648, owner:'ravnsson', type:'norse',    garrison:8,  settlement:0, income:10, food:7,  loot:35,  lootMax:55,  def:1.05 },
-  { id:'sjaelland', name:'Sjælland',   land:'zealand',   x:528, y:632, owner:'ravnsson', type:'norse',    garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
+  // --- Skandinaviska halvön ---
+  { id:'halogaland',  name:'Hålogaland', land:'scandia', x:560, y:135, owner:'neutral',   type:'norse', coastal:true,  garrison:5,  settlement:0, income:8,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'trondelag',   name:'Trøndelag',  land:'scandia', x:505, y:225, owner:'player',    type:'norse', coastal:true,  garrison:7,  settlement:0, income:9,  food:5,  loot:45,  lootMax:60,  def:1.15 },
+  { id:'hordaland',   name:'Hordaland',  land:'scandia', x:470, y:360, owner:'player',    type:'norse', coastal:true,  garrison:7,  settlement:0, income:9,  food:4,  loot:40,  lootMax:55,  def:1.10 },
+  { id:'vestfold',    name:'Vestfold',   land:'scandia', x:525, y:478, owner:'player',    type:'norse', coastal:true,  garrison:12, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'uppland',     name:'Uppland',    land:'scandia', x:652, y:335, owner:'bjornsson', type:'norse', coastal:true,  garrison:11, settlement:1, income:10, food:5,  loot:30,  lootMax:50,  def:1.10 },
+  { id:'ostergotland',name:'Östergötland',land:'scandia',x:646, y:458, owner:'neutral',   type:'norse', coastal:true,  garrison:6,  settlement:0, income:10, food:6,  loot:38,  lootMax:52,  def:1.05 },
+  { id:'gotaland',    name:'Götaland',   land:'scandia', x:594, y:520, owner:'bjornsson', type:'norse', coastal:true,  garrison:7,  settlement:0, income:9,  food:6,  loot:35,  lootMax:50,  def:1.05 },
+  { id:'skane',       name:'Skåne',      land:'scandia', x:548, y:578, owner:'neutral',   type:'norse', coastal:true,  garrison:6,  settlement:0, income:10, food:7,  loot:40,  lootMax:55,  def:1.05 },
+  // --- Danmark ---
+  { id:'jylland',     name:'Jylland',    land:'continent', x:428, y:648, owner:'ravnsson', type:'norse', coastal:true, garrison:8,  settlement:0, income:10, food:7,  loot:35,  lootMax:55,  def:1.05 },
+  { id:'sjaelland',   name:'Sjælland',   land:'zealand',   x:528, y:632, owner:'ravnsson', type:'norse', coastal:true, garrison:11, settlement:1, income:10, food:6,  loot:35,  lootMax:55,  def:1.10 },
   // --- Gotland ---
-  { id:'gotland',   name:'Gotland',    land:'gotland', x:756, y:486, owner:'neutral',   type:'island',    garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
+  { id:'gotland',     name:'Gotland',    land:'gotland', x:756, y:486, owner:'neutral',   type:'island', coastal:true, garrison:5,  settlement:0, income:12, food:4,  loot:80,  lootMax:110, def:1.00 },
   // --- Brittiska öarna ---
-  { id:'orkney',     name:'Orkneyöarna', land:'orkney',  x:145, y:92,  owner:'neutral',   type:'island',    garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
-  { id:'northumbria',name:'Northumbria',  land:'britain', x:215, y:330, owner:'christian', type:'christian', garrison:10, settlement:1, income:13, food:7,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne!
-  { id:'mercia',     name:'Mercia',       land:'britain', x:180, y:440, owner:'christian', type:'christian', garrison:13, settlement:1, income:14, food:9,  loot:160, lootMax:180, def:1.20 },
-  { id:'eastanglia', name:'East Anglia',  land:'britain', x:235, y:452, owner:'christian', type:'christian', garrison:10, settlement:1, income:13, food:8,  loot:170, lootMax:190, def:1.10 },
-  { id:'wessex',     name:'Wessex',       land:'britain', x:190, y:540, owner:'christian', type:'christian', garrison:16, settlement:2, income:14, food:9,  loot:200, lootMax:220, def:1.30 },
-  { id:'dublin',     name:'Dublin',       land:'ireland', x:72,  y:432, owner:'christian', type:'christian', garrison:8,  settlement:1, income:11, food:6,  loot:150, lootMax:170, def:1.10 },
-  // --- Kontinenten (Frankerriket i väster, Sachsen i öster) ---
-  { id:'frisia',     name:'Frisia',       land:'continent', x:345, y:822, owner:'christian', type:'christian', garrison:12, settlement:1, income:13, food:8,  loot:140, lootMax:160, def:1.10 },
-  { id:'saxony',     name:'Sachsen',      land:'continent', x:612, y:828, owner:'christian', type:'christian', garrison:14, settlement:1, income:13, food:9,  loot:150, lootMax:170, def:1.20 },
-  { id:'frankia',    name:'Frankerriket', land:'continent', x:255, y:850, owner:'christian', type:'christian', garrison:18, settlement:2, income:16, food:10, loot:230, lootMax:250, def:1.35 },
+  { id:'orkney',      name:'Orkneyöarna', land:'orkney',  x:145, y:92,  owner:'neutral',   type:'island', coastal:true, garrison:4,  settlement:0, income:7,  food:4,  loot:60,  lootMax:80,  def:1.00 },
+  { id:'pictland',    name:'Piktland',   land:'britain', x:152, y:200, owner:'northumbria', type:'christian', coastal:true,  garrison:7,  settlement:0, income:10, food:5,  loot:90,  lootMax:110, def:1.10 }, // Iona
+  { id:'northumbria', name:'Northumbria',land:'britain', x:215, y:335, owner:'northumbria', type:'christian', coastal:true,  garrison:10, settlement:1, income:13, food:7,  loot:250, lootMax:250, def:1.20 }, // Lindisfarne
+  { id:'gwynedd',     name:'Gwynedd',    land:'britain', x:138, y:418, owner:'mercia',      type:'christian', coastal:true,  garrison:8,  settlement:0, income:10, food:6,  loot:110, lootMax:130, def:1.15 }, // Wales
+  { id:'mercia',      name:'Mercia',     land:'britain', x:190, y:448, owner:'mercia',      type:'christian', coastal:false, garrison:13, settlement:1, income:14, food:9,  loot:160, lootMax:180, def:1.20 },
+  { id:'eastanglia',  name:'East Anglia',land:'britain', x:250, y:454, owner:'mercia',      type:'christian', coastal:true,  garrison:10, settlement:1, income:13, food:8,  loot:170, lootMax:190, def:1.10 },
+  { id:'kent',        name:'Kent',       land:'britain', x:270, y:502, owner:'wessex',      type:'christian', coastal:true,  garrison:9,  settlement:1, income:13, food:7,  loot:150, lootMax:170, def:1.15 },
+  { id:'wessex',      name:'Wessex',     land:'britain', x:186, y:548, owner:'wessex',      type:'christian', coastal:true,  garrison:16, settlement:2, income:14, food:9,  loot:200, lootMax:220, def:1.30 },
+  // --- Irland ---
+  { id:'dublin',      name:'Dublin',     land:'ireland', x:74,  y:430, owner:'dublin',      type:'christian', coastal:true,  garrison:8,  settlement:1, income:11, food:6,  loot:150, lootMax:170, def:1.10 },
+  { id:'munster',     name:'Munster',    land:'ireland', x:52,  y:488, owner:'dublin',      type:'christian', coastal:true,  garrison:8,  settlement:0, income:10, food:6,  loot:130, lootMax:150, def:1.10 },
+  // --- Kontinenten ---
+  { id:'frisia',      name:'Frisia',     land:'continent', x:392, y:778, owner:'frankia',  type:'christian', coastal:true,  garrison:11, settlement:1, income:13, food:8,  loot:140, lootMax:160, def:1.10 },
+  { id:'neustria',    name:'Neustrien',  land:'continent', x:245, y:825, owner:'frankia',  type:'christian', coastal:true,  garrison:12, settlement:1, income:15, food:9,  loot:190, lootMax:210, def:1.20 },
+  { id:'frankia',     name:'Austrasien', land:'continent', x:332, y:862, owner:'frankia',  type:'christian', coastal:false, garrison:18, settlement:2, income:16, food:10, loot:230, lootMax:250, def:1.35 },
+  { id:'saxony',      name:'Sachsen',    land:'continent', x:560, y:826, owner:'saxony',   type:'christian', coastal:false, garrison:14, settlement:1, income:13, food:9,  loot:150, lootMax:170, def:1.20 },
+  { id:'bayern',      name:'Bayern',     land:'continent', x:688, y:858, owner:'saxony',   type:'christian', coastal:false, garrison:15, settlement:2, income:15, food:9,  loot:170, lootMax:190, def:1.25 },
 ];
 
-// [a, b, sea?] — realistisk angreppslogik (verifierad sammanhängande graf, grad>=2)
-// sea=true => långskeppsled över vatten; false => landgräns med väg
+// Landgränser (sea=false) + sjövägar för erövring/marsch över kort vatten (sea=true).
+// Sjöraid över längre avstånd kräver INGEN kant — se CONFIG.NAVAL_RAID_RANGE.
 const EDGES = [
-  ['trondelag','hordaland',false],   // norsk västkust
-  ['hordaland','vestfold',false],    // norsk sydkust
-  ['trondelag','uppland',false],     // över fjällryggen
-  ['vestfold','gotaland',false],     // Bohuslän
-  ['uppland','gotaland',false],      // inre Sverige
-  ['gotaland','skane',false],        // sydsvensk landfront
-  ['uppland','gotland',true],        // Roslagen–Gotland (Östersjön)
-  ['gotland','gotaland',true],       // Gotland–östgötakusten
-  ['skane','sjaelland',true],        // Öresund
-  ['gotaland','jylland',true],       // Kattegatt
-  ['jylland','sjaelland',true],      // Stora Bält
-  ['jylland','frisia',false],        // Jyllands rot mot Frisien (land)
-  ['hordaland','orkney',true],       // Nordsjön (kanonisk norsk utfärd)
-  ['vestfold','northumbria',true],   // Lindisfarne-leden 793
-  ['orkney','northumbria',true],     // längs Skottlands ostkust
-  ['northumbria','mercia',false],
-  ['mercia','eastanglia',false],
-  ['mercia','wessex',false],
-  ['eastanglia','wessex',false],
-  ['eastanglia','northumbria',false],// Britanniens ostkust (land)
-  ['northumbria','dublin',true],     // runt Skottland till Dublin
-  ['dublin','mercia',true],          // Irländska sjön
-  ['dublin','wessex',true],          // Bristolkanalen
-  ['wessex','frankia',true],         // Engelska kanalen
-  ['eastanglia','frisia',true],      // Nordsjön (frisisk-engelsk axel)
-  ['frisia','saxony',false],
-  ['frisia','frankia',false],        // Rhenmynningen
-  ['frankia','saxony',false],
-  ['vestfold','jylland',true],       // Skagerrak
-  ['skane','jylland',true],          // Kattegatt (dansk kärna)
+  // Skandinavien (land)
+  ['halogaland','trondelag',false],['halogaland','uppland',false],['trondelag','hordaland',false],
+  ['trondelag','uppland',false],['hordaland','vestfold',false],['vestfold','gotaland',false],
+  ['uppland','ostergotland',false],['uppland','gotaland',false],['ostergotland','gotaland',false],
+  ['ostergotland','skane',false],['gotaland','skane',false],
+  // Britannien (land)
+  ['pictland','northumbria',false],['pictland','gwynedd',false],['northumbria','mercia',false],
+  ['northumbria','eastanglia',false],['gwynedd','mercia',false],['mercia','eastanglia',false],
+  ['mercia','wessex',false],['eastanglia','kent',false],['eastanglia','wessex',false],
+  ['kent','wessex',false],['gwynedd','wessex',false],
+  // Irland (land)
+  ['dublin','munster',false],
+  // Kontinenten (land)
+  ['jylland','frisia',false],['frisia','neustria',false],['frisia','saxony',false],
+  ['neustria','frankia',false],['frankia','saxony',false],['frankia','bayern',false],['saxony','bayern',false],
+  // Östersjön / Kattegatt / sundsstråk (sea)
+  ['uppland','gotland',true],['gotaland','gotland',true],['ostergotland','gotland',true],
+  ['skane','sjaelland',true],['jylland','sjaelland',true],['gotaland','jylland',true],
+  ['vestfold','jylland',true],['skane','jylland',true],
+  // Nordsjön / Skottland (sea)
+  ['hordaland','orkney',true],['orkney','pictland',true],['orkney','northumbria',true],['vestfold','northumbria',true],
+  // Irländska sjön / Engelska kanalen / Nordsjö-axeln (sea)
+  ['dublin','gwynedd',true],['munster','wessex',true],['eastanglia','frisia',true],
+  ['kent','neustria',true],['wessex','neustria',true],
 ];
 
-// Spelbara landmassor med realistiska kustlinjer (världskoord). river = flodbana.
+// Spelbara landmassor med realistiska kustlinjer.
 const LANDS = {
   scandia: {
     poly: [[525,598],[500,565],[508,545],[486,520],[498,500],[472,470],[486,450],[455,420],[470,400],
@@ -326,18 +334,10 @@ const LANDS = {
            [132,350],[108,300],[126,250],[100,200],[126,165]],
     river: [[180,250],[210,340],[185,430],[214,512]],
   },
-  ireland: {
-    poly: [[60,338],[95,352],[112,402],[106,462],[78,512],[44,520],[22,470],[16,402],[30,356]],
-  },
-  orkney: {
-    poly: [[118,70],[168,74],[172,108],[120,112]],
-  },
-  gotland: {
-    poly: [[732,452],[778,460],[780,512],[734,518]],
-  },
-  zealand: {
-    poly: [[498,602],[556,598],[572,636],[540,668],[498,656]],
-  },
+  ireland: { poly: [[60,338],[95,352],[112,402],[106,462],[78,512],[44,520],[22,470],[16,402],[30,356]] },
+  orkney:  { poly: [[118,70],[168,74],[172,108],[120,112]] },
+  gotland: { poly: [[732,452],[778,460],[780,512],[734,518]] },
+  zealand: { poly: [[498,602],[556,598],[572,636],[540,668],[498,656]] },
   continent: {
     poly: [[428,560],[454,596],[470,656],[472,716],[560,756],[652,772],[742,792],[776,836],[706,886],
            [516,896],[330,892],[206,860],[196,802],[286,772],[366,762],[398,706],[408,648],[412,600]],
@@ -345,7 +345,7 @@ const LANDS = {
   },
 };
 
-// Icke-spelbar kontext: resten av Europa, ritas grått (inga provinser/städer).
+// Icke-spelbar kontext: resten av Europa, ritas grått.
 const CONTEXT_LANDS = [
   { label:'Gardarike',                labelPos:[890,250],  poly:[[812,84],[900,98],[968,140],[998,225],[995,330],[966,420],[922,452],[860,430],[820,360],[792,300],[800,180]] },
   { label:'Austrvegr',                labelPos:[895,556],  poly:[[792,476],[864,486],[940,500],[1000,548],[1000,628],[908,624],[820,610],[792,560],[800,516]] },
@@ -356,11 +356,15 @@ const CONTEXT_LANDS = [
 ];
 // ============================================================
 //  JARL — spelmotor: tillstånd, ekonomi, försörjning, strid, AI
+//  Alla riken (vikingaätter + kristna kungariken) agerar och kan
+//  kriga mot varandra. Sjöraid når kust utan att gränsa.
 // ============================================================
 
 const Engine = (function () {
   let adj = {};
   let state = null;
+  const AI_IDS = FACTIONS.filter(f => f.id !== 'player' && f.kind !== 'neutral').map(f => f.id);
+  const ECON_IDS = FACTIONS.filter(f => f.kind !== 'neutral').map(f => f.id);
 
   const rng = () => Math.random();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -368,10 +372,7 @@ const Engine = (function () {
   function buildAdjacency() {
     adj = {};
     PROVINCES.forEach(p => { adj[p.id] = []; });
-    EDGES.forEach(([a, b, sea]) => {
-      adj[a].push({ id: b, sea });
-      adj[b].push({ id: a, sea });
-    });
+    EDGES.forEach(([a, b, sea]) => { adj[a].push({ id: b, sea }); adj[b].push({ id: a, sea }); });
   }
 
   function init() {
@@ -380,10 +381,12 @@ const Engine = (function () {
     PROVINCES.forEach(p => { provinces[p.id] = Object.assign({}, p, { acted: false, recruited: 0 }); });
     const factions = {};
     FACTIONS.forEach(f => { factions[f.id] = Object.assign({}, f, { silver: 0, food: 0, renown: 0 }); });
-    factions.player.silver = 150;   factions.player.food = 55;
-    factions.ravnsson.silver = 90;  factions.ravnsson.food = 30;
-    factions.bjornsson.silver = 90; factions.bjornsson.food = 30;
-    factions.christian.silver = 150; factions.christian.food = 90;
+    factions.player.silver = 150; factions.player.food = 55;
+    AI_IDS.forEach(id => {
+      const f = factions[id];
+      f.silver = f.kind === 'christian' ? 110 : 90;
+      f.food = f.kind === 'christian' ? 70 : 30;
+    });
     state = { turn: 1, provinces, factions, selected: null, log: [], over: false, won: false, lastBattle: null };
     pushLog('☩ År 793. Långskeppen ligger redo. Led Ulfssons ätt till ära!', 'system');
     return state;
@@ -409,11 +412,9 @@ const Engine = (function () {
   const foodIncome = fid => provincesOf(fid).reduce((a, p) => a + provinceFood(p), 0);
   const supplyCap = fid => CONFIG.BASE_SUPPLY + foodIncome(fid);
   const upkeep = fid => warriorsOf(fid) * CONFIG.FOOD_PER_WARRIOR;
+  const navalDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  function pushLog(text, kind) {
-    state.log.unshift({ text, kind: kind || 'info', turn: state.turn });
-    if (state.log.length > 80) state.log.pop();
-  }
+  function pushLog(text, kind) { state.log.unshift({ text, kind: kind || 'info', turn: state.turn }); if (state.log.length > 80) state.log.pop(); }
 
   // ---- strid ----
   function battle(atk, def, dmult) {
@@ -444,7 +445,8 @@ const Engine = (function () {
     return res;
   }
 
-  function doRaid(srcId, tgtId, send) {
+  // Raid kräver INGEN gräns — långskeppen seglar dit (grannraid + sjöraid).
+  function doRaid(srcId, tgtId, send, naval) {
     const s = prov(srcId), t = prov(tgtId);
     send = clamp(send, 1, s.garrison); s.garrison -= send; s.acted = true;
     const res = battle(send, t.garrison, defMult(t)); t.garrison = res.defSurv;
@@ -452,14 +454,13 @@ const Engine = (function () {
     if (res.atkSurv > 0) {
       stolen = Math.min(t.loot, Math.round(t.loot * (res.win ? 0.7 : 0.3)));
       t.loot -= stolen;
-      const f = fac(s.owner);
-      f.silver += stolen;
-      grain = Math.floor(stolen / 8); f.food += grain;     // plundrad spannmål håller hären flytande
+      const f = fac(s.owner); f.silver += stolen;
+      grain = Math.floor(stolen / 8); f.food += grain;
       ren = Math.round(stolen / 9) + (res.win ? 6 : 2); f.renown += ren;
     }
     s.garrison += res.atkSurv;
     state.lastBattle = { kind: 'raid', win: res.win, src: srcId, tgt: tgtId, res, stolen, ren, grain };
-    if (s.owner === 'player') pushLog(`🔥 Raid mot ${t.name}: ${stolen} silver${grain ? ' + ' + grain + ' mat' : ''} plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
+    if (s.owner === 'player') pushLog(`${naval ? '🌊' : '🔥'} ${naval ? 'Sjöraid' : 'Raid'} mot ${t.name}: ${stolen} silver${grain ? ' + ' + grain + ' mat' : ''} plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
     return res;
   }
 
@@ -496,78 +497,48 @@ const Engine = (function () {
     let silver = 0;
     provincesOf(fid).forEach(p => { silver += provinceIncome(p); });
     f.silver += silver;
-    f.food += foodIncome(fid) - upkeep(fid);    // golvas EJ — negativt => svält
+    f.food += foodIncome(fid) - upkeep(fid);
   }
-
   function desert(fid, n, reason) {
-    n = Math.min(n, warriorsOf(fid));
-    if (n <= 0) return;
-    let left = n;
-    provincesOf(fid).sort((a, b) => b.garrison - a.garrison).forEach(p => {
-      if (left <= 0) return;
-      const take = Math.min(p.garrison, left); p.garrison -= take; left -= take;
-    });
-    if (fid === 'player')
-      pushLog(reason === 'svalt' ? `☠️ Svält! ${n} krigare överger din ätt.` : `⚠️ Försörjningen brister — ${n} krigare deserterar.`, 'bad');
+    n = Math.min(n, warriorsOf(fid)); if (n <= 0) return; let left = n;
+    provincesOf(fid).sort((a, b) => b.garrison - a.garrison).forEach(p => { if (left <= 0) return; const take = Math.min(p.garrison, left); p.garrison -= take; left -= take; });
+    if (fid === 'player') pushLog(reason === 'svalt' ? `☠️ Svält! ${n} krigare överger din ätt.` : `⚠️ Försörjningen brister — ${n} krigare deserterar.`, 'bad');
   }
-
   function applyAttrition(fid) {
     const f = fac(fid);
-    if (f.food < 0) { desert(fid, Math.ceil(-f.food / 2), 'svalt'); f.food = 0; }      // 1 krigare per 2 saknad mat
+    if (f.food < 0) { desert(fid, Math.ceil(-f.food / 2), 'svalt'); f.food = 0; }
     const over = warriorsOf(fid) - supplyCap(fid);
     if (over > 0) desert(fid, Math.ceil(over * CONFIG.OVERCAP_DESERT), 'overcap');
   }
+  function regenLoot() { Object.values(state.provinces).forEach(p => { p.loot = Math.min(p.lootMax, p.loot + Math.max(1, Math.round(p.lootMax * 0.05))); }); }
 
-  function regenLoot() {
-    Object.values(state.provinces).forEach(p => {
-      p.loot = Math.min(p.lootMax, p.loot + Math.max(1, Math.round(p.lootMax * 0.05)));
-    });
-  }
-
-  // ---- AI ----
+  // ---- AI (samma för alla riken) ----
   function aiTurn(fid) {
     const f = fac(fid);
     const mine = provincesOf(fid);
     if (mine.length === 0) return;
-    const isChristian = f.kind === 'christian';
+    const viking = f.kind === 'viking';
     const headroom = () => supplyCap(fid) - warriorsOf(fid);
-
-    // 1) rekrytera mot ett MÅTTLIGT armémål — inte upp till hela försörjningstaket.
-    //    Så AI bygger en lagom här i stället för en passiv doomstack.
-    const armyTarget = countOf(fid) * (isChristian ? 14 : 10);
+    const armyTarget = countOf(fid) * 11;
     const cap = supplyCap(fid);
+    const isFront = p => neighbors(p.id).some(n => prov(n.id).owner !== fid);
+
     mine.forEach(p => {
-      const frontier = neighbors(p.id).some(n => prov(n.id).owner !== fid);
-      const gTarget = isChristian ? 18 : (frontier ? 14 : 7);
+      const gTarget = isFront(p) ? 14 : 7;
       if (warriorsOf(fid) < Math.min(cap, armyTarget) && p.garrison < gTarget &&
           headroom() >= CONFIG.RECRUIT_BATCH && f.silver >= CONFIG.RECRUIT_SILVER &&
           f.food >= CONFIG.RECRUIT_FOOD + 2 && p.recruited < recruitCap(p)) doRecruit(p.id);
     });
 
-    // 2) lägg överskotts-silver på 1 stadsbygge/tur när hären nått sitt mål (höjer mat + försvar)
     if (f.silver >= TIERS[1].cost && warriorsOf(fid) >= Math.min(cap, armyTarget) - CONFIG.RECRUIT_BATCH) {
       const cand = mine.filter(p => p.settlement < CONFIG.MAX_SETTLEMENT).sort((a, b) => {
-        const af = neighbors(a.id).some(n => prov(n.id).owner !== fid) ? 1 : 0;
-        const bf = neighbors(b.id).some(n => prov(n.id).owner !== fid) ? 1 : 0;
-        if (af !== bf) return isChristian ? bf - af : af - bf;   // kristna befäster fronten först
+        const af = isFront(a) ? 1 : 0, bf = isFront(b) ? 1 : 0;
+        if (af !== bf) return af - bf;
         return a.settlement - b.settlement;
       });
       for (const p of cand) { if (f.silver >= buildCost(p) && doBuild(p.id).ok) break; }
     }
 
-    if (isChristian) {
-      // defensiv: återtar förlorad mark men expanderar aldrig bortom utgångsläget
-      let acts = 0;
-      provincesOf(fid).forEach(p => {
-        if (acts >= 1 || countOf(fid) >= 9 || p.acted || p.garrison < 16) return;
-        const t = neighbors(p.id).map(n => prov(n.id))
-          .find(t => t.owner !== fid && t.type !== 'christian' && p.garrison > t.garrison * defMult(t) * 2.2);
-        if (t) { const before = t.owner; doInvade(p.id, t.id, p.garrison - 6); if (before === 'player' && t.owner === fid) pushLog(`☩ ${f.name} återtog ${t.name} från dig!`, 'bad'); acts++; }
-      });
-      return;
-    }
-
-    // 3) vikinga-AI: expandera & raida — lämna alltid 40 % garnison hemma
     let acts = 0;
     provincesOf(fid).slice().sort((a, b) => b.garrison - a.garrison).forEach(p => {
       if (acts >= 2 || p.acted || p.garrison < 6) return;
@@ -580,7 +551,25 @@ const Engine = (function () {
       if (send > best.garrison * defMult(best) * 1.4) {
         const before = best.owner; doInvade(p.id, best.id, send);
         if (before === 'player' && best.owner === fid) pushLog(`⚔️ ${f.name} erövrade ${best.name} från dig!`, 'bad'); acts++;
-      } else if (best.loot > 50) { doRaid(p.id, best.id, send); acts++; }
+      } else if (best.loot > 50) { doRaid(p.id, best.id, send, false); acts++; }
+    });
+
+    if (viking) navalRaidAI(fid);
+  }
+
+  function navalRaidAI(fid) {
+    let done = false;
+    provincesOf(fid).slice().sort((a, b) => b.garrison - a.garrison).forEach(p => {
+      if (done || p.acted || !p.coastal || p.garrison < 9) return;
+      const keep = Math.ceil(p.garrison * 0.5); const send = p.garrison - keep; if (send < 5) return;
+      let best = null, bs = 0;
+      Object.values(state.provinces).forEach(t => {
+        if (t.owner === fid || !t.coastal || isAdjacent(p.id, t.id)) return;
+        if (navalDist(p, t) > CONFIG.NAVAL_RAID_RANGE || t.loot < 70) return;
+        const score = t.loot - effectiveDefense(t) * 2.5;
+        if (send > effectiveDefense(t) * 0.7 && score > bs) { bs = score; best = t; }
+      });
+      if (best) { doRaid(p.id, best.id, send, true); done = true; }
     });
   }
 
@@ -588,17 +577,19 @@ const Engine = (function () {
     const pCount = countOf('player'), pRen = fac('player').renown;
     if (pCount === 0) { state.over = true; state.won = false; pushLog('☠️ Din ätt har fallit. Sagan är slut.', 'bad'); return; }
     if (pRen >= CONFIG.RENOWN_TO_WIN || pCount >= CONFIG.PROVINCES_TO_WIN) { state.over = true; state.won = true; pushLog('👑 Din ätt härskar över Norden! Seger!', 'good'); return; }
-    ['ravnsson', 'bjornsson'].forEach(fid => {
+    AI_IDS.forEach(fid => {
       if (state.over) return;
-      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) { state.over = true; state.won = false; pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad'); }
+      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) {
+        state.over = true; state.won = false; pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad');
+      }
     });
   }
 
   function endPlayerTurn() {
     if (state.over) return;
     state.selected = null;
-    ['bjornsson', 'ravnsson', 'christian'].forEach(aiTurn);
-    ['player', 'bjornsson', 'ravnsson', 'christian'].forEach(fid => { collectIncome(fid); applyAttrition(fid); });
+    AI_IDS.forEach(aiTurn);
+    ECON_IDS.forEach(fid => { collectIncome(fid); applyAttrition(fid); });
     regenLoot();
     Object.values(state.provinces).forEach(p => { p.acted = false; p.recruited = 0; });
     state.turn += 1;
@@ -610,7 +601,7 @@ const Engine = (function () {
     get state() { return state; },
     prov, fac, neighbors, isAdjacent, provincesOf, countOf, warriorsOf,
     tierOf, defMult, provinceIncome, provinceFood, recruitCap, buildCost, effectiveDefense,
-    foodIncome, supplyCap, upkeep,
+    foodIncome, supplyCap, upkeep, navalDist,
     doInvade, doRaid, doMarch, doRecruit, doBuild,
     endPlayerTurn, pushLog,
   };
@@ -705,6 +696,12 @@ const Render = (function () {
     const res = {}; if (!selId) return res;
     const p = Engine.prov(selId); if (!p || p.owner !== 'player' || p.acted || p.garrison <= 0) return res;
     Engine.neighbors(selId).forEach(n => { res[n.id] = (Engine.prov(n.id).owner === 'player') ? 'friend' : 'enemy'; });
+    if (p.coastal) {   // sjöraid: nå kust utan att gränsa
+      Object.values(Engine.state.provinces).forEach(q => {
+        if (q.id === selId || res[q.id] || !q.coastal || q.owner === 'player') return;
+        if (Engine.navalDist(p, q) <= CONFIG.NAVAL_RAID_RANGE) res[q.id] = 'naval';
+      });
+    }
     return res;
   }
 
@@ -816,10 +813,13 @@ const Render = (function () {
     const sel = Engine.state.selected; if (!sel) return;
     const pulse = 0.5 + 0.5 * Math.sin(t * 4); const targets = validTargets(sel);
     Object.keys(targets).forEach(id => {
-      const cell = CELLS[id]; if (!cell) return; const enemy = targets[id] === 'enemy';
-      ctx.save(); ctx.beginPath(); pathPolyW(cell);
-      ctx.fillStyle = enemy ? `rgba(255,90,70,${0.10 + pulse * 0.16})` : `rgba(120,225,120,${0.10 + pulse * 0.14})`; ctx.fill();
-      ctx.lineWidth = 2.5 + pulse * 1.5; ctx.strokeStyle = enemy ? `rgba(255,120,95,${0.7 + pulse * 0.3})` : `rgba(150,240,150,0.9)`; ctx.stroke(); ctx.restore();
+      const cell = CELLS[id]; if (!cell) return; const k = targets[id];
+      let fill, stroke, lw, dash = false;
+      if (k === 'enemy') { fill = `rgba(255,90,70,${0.10 + pulse * 0.16})`; stroke = `rgba(255,120,95,${0.7 + pulse * 0.3})`; lw = 2.5 + pulse * 1.5; }
+      else if (k === 'friend') { fill = `rgba(120,225,120,${0.10 + pulse * 0.14})`; stroke = `rgba(150,240,150,0.9)`; lw = 2.5 + pulse * 1.5; }
+      else { fill = `rgba(90,190,235,${0.05 + pulse * 0.09})`; stroke = `rgba(110,205,245,${0.5 + pulse * 0.3})`; lw = 2 + pulse; dash = true; } // sjöraid
+      ctx.save(); ctx.beginPath(); pathPolyW(cell); ctx.fillStyle = fill; ctx.fill();
+      ctx.lineWidth = lw; ctx.strokeStyle = stroke; if (dash) ctx.setLineDash([5, 5]); ctx.stroke(); ctx.restore();
     });
     const cell = CELLS[sel]; if (cell) { ctx.save(); ctx.beginPath(); pathPolyW(cell); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,224,130,${0.75 + pulse * 0.25})`; ctx.stroke(); ctx.restore(); }
   }
@@ -983,14 +983,17 @@ const UI = (function () {
   // ---------- actionsheet ----------
   function openSheet(srcId, tgtId, kind) {
     pending = { src: srcId, tgt: tgtId, kind };
-    const s = Engine.prov(srcId), t = Engine.prov(tgtId), max = s.garrison, owner = Engine.fac(t.owner), friend = kind === 'friend';
-    const title = friend ? `→ Flytta till ${t.name}` : `⚔️ Mål: ${t.name}`;
+    const s = Engine.prov(srcId), t = Engine.prov(tgtId), max = s.garrison, owner = Engine.fac(t.owner);
+    const friend = kind === 'friend', naval = kind === 'naval';
+    const title = friend ? `→ Flytta till ${t.name}` : naval ? `🌊 Sjöraid mot ${t.name}` : `⚔️ Mål: ${t.name}`;
     const targetInfo = friend
       ? `<div class="sinfo">${t.name} har ${t.garrison} krigare (din ätt).</div>`
-      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name} &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b> &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b></div>`;
+      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name} &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b> &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b>${naval ? ' &nbsp;·&nbsp; 🌊 långskeppsled' : ''}</div>`;
     const btns = friend
       ? `<button class="big" data-do="march">→ Marschera hit</button>`
-      : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button><button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
+      : naval
+        ? `<button class="big raid" data-do="raid">🔥 Raida (sjöväg)<small>plundra & segla hem</small></button>`
+        : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button><button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
     el.sheet.innerHTML =
       `<div class="sheet-card"><div class="stitle">${title}</div>${targetInfo}
          <div class="slider"><label>Skicka krigare: <b id="sval">${max}</b> / ${max}</label><input type="range" id="srange" min="1" max="${max}" value="${max}"><div class="odds" id="odds"></div></div>
@@ -1009,7 +1012,7 @@ const UI = (function () {
     const pn = pending; closeSheet();
     if (!pn || action === 'cancel') { refresh(); return; }
     if (action === 'march') Engine.doMarch(pn.src, pn.tgt, send);
-    if (action === 'raid') Engine.doRaid(pn.src, pn.tgt, send);
+    if (action === 'raid') Engine.doRaid(pn.src, pn.tgt, send, pn.kind === 'naval');
     if (action === 'invade') Engine.doInvade(pn.src, pn.tgt, send);
     Engine.state.selected = null; refresh();
   }
@@ -1031,8 +1034,8 @@ const UI = (function () {
            <li>🔴 Du leder <b>Ulfssons ätt</b> i Vestfold och Hordaland.</li>
            <li>🌾 <b>Mat föder din här</b> — du kan inte hålla fler krigare än du kan föda. Svält ger desertering.</li>
            <li>🏗️ <b>Bygg städer</b> i 6 nivåer (Torp→Fästning) för mer inkomst, mat och försvar.</li>
-           <li>🔥 <b>Raida</b> kristna riken (✝) för silver, mat och ära.</li>
-           <li>⚔️ <b>Erövra</b> grannregioner — landväg eller över hav.</li>
+           <li>⚔️ <b>Erövra</b> grannar och 🌊 <b>sjöraida</b> avlägsna kuster — långskeppen behöver ingen gräns.</li>
+           <li>✝ De <b>kristna kungarikena</b> krigar mot varandra — slå till när de är svaga.</li>
            <li>👑 Vinn genom <b>${CONFIG.RENOWN_TO_WIN} ära</b> eller <b>${CONFIG.PROVINCES_TO_WIN} regioner</b>.</li>
          </ul>
          <button class="big invade" id="startBtn">⛵ Sätt segel</button></div>`;

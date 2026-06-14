@@ -1,10 +1,14 @@
 // ============================================================
 //  JARL — spelmotor: tillstånd, ekonomi, försörjning, strid, AI
+//  Alla riken (vikingaätter + kristna kungariken) agerar och kan
+//  kriga mot varandra. Sjöraid når kust utan att gränsa.
 // ============================================================
 
 const Engine = (function () {
   let adj = {};
   let state = null;
+  const AI_IDS = FACTIONS.filter(f => f.id !== 'player' && f.kind !== 'neutral').map(f => f.id);
+  const ECON_IDS = FACTIONS.filter(f => f.kind !== 'neutral').map(f => f.id);
 
   const rng = () => Math.random();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -12,10 +16,7 @@ const Engine = (function () {
   function buildAdjacency() {
     adj = {};
     PROVINCES.forEach(p => { adj[p.id] = []; });
-    EDGES.forEach(([a, b, sea]) => {
-      adj[a].push({ id: b, sea });
-      adj[b].push({ id: a, sea });
-    });
+    EDGES.forEach(([a, b, sea]) => { adj[a].push({ id: b, sea }); adj[b].push({ id: a, sea }); });
   }
 
   function init() {
@@ -24,10 +25,12 @@ const Engine = (function () {
     PROVINCES.forEach(p => { provinces[p.id] = Object.assign({}, p, { acted: false, recruited: 0 }); });
     const factions = {};
     FACTIONS.forEach(f => { factions[f.id] = Object.assign({}, f, { silver: 0, food: 0, renown: 0 }); });
-    factions.player.silver = 150;   factions.player.food = 55;
-    factions.ravnsson.silver = 90;  factions.ravnsson.food = 30;
-    factions.bjornsson.silver = 90; factions.bjornsson.food = 30;
-    factions.christian.silver = 150; factions.christian.food = 90;
+    factions.player.silver = 150; factions.player.food = 55;
+    AI_IDS.forEach(id => {
+      const f = factions[id];
+      f.silver = f.kind === 'christian' ? 110 : 90;
+      f.food = f.kind === 'christian' ? 70 : 30;
+    });
     state = { turn: 1, provinces, factions, selected: null, log: [], over: false, won: false, lastBattle: null };
     pushLog('☩ År 793. Långskeppen ligger redo. Led Ulfssons ätt till ära!', 'system');
     return state;
@@ -53,11 +56,9 @@ const Engine = (function () {
   const foodIncome = fid => provincesOf(fid).reduce((a, p) => a + provinceFood(p), 0);
   const supplyCap = fid => CONFIG.BASE_SUPPLY + foodIncome(fid);
   const upkeep = fid => warriorsOf(fid) * CONFIG.FOOD_PER_WARRIOR;
+  const navalDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  function pushLog(text, kind) {
-    state.log.unshift({ text, kind: kind || 'info', turn: state.turn });
-    if (state.log.length > 80) state.log.pop();
-  }
+  function pushLog(text, kind) { state.log.unshift({ text, kind: kind || 'info', turn: state.turn }); if (state.log.length > 80) state.log.pop(); }
 
   // ---- strid ----
   function battle(atk, def, dmult) {
@@ -88,7 +89,8 @@ const Engine = (function () {
     return res;
   }
 
-  function doRaid(srcId, tgtId, send) {
+  // Raid kräver INGEN gräns — långskeppen seglar dit (grannraid + sjöraid).
+  function doRaid(srcId, tgtId, send, naval) {
     const s = prov(srcId), t = prov(tgtId);
     send = clamp(send, 1, s.garrison); s.garrison -= send; s.acted = true;
     const res = battle(send, t.garrison, defMult(t)); t.garrison = res.defSurv;
@@ -96,14 +98,13 @@ const Engine = (function () {
     if (res.atkSurv > 0) {
       stolen = Math.min(t.loot, Math.round(t.loot * (res.win ? 0.7 : 0.3)));
       t.loot -= stolen;
-      const f = fac(s.owner);
-      f.silver += stolen;
-      grain = Math.floor(stolen / 8); f.food += grain;     // plundrad spannmål håller hären flytande
+      const f = fac(s.owner); f.silver += stolen;
+      grain = Math.floor(stolen / 8); f.food += grain;
       ren = Math.round(stolen / 9) + (res.win ? 6 : 2); f.renown += ren;
     }
     s.garrison += res.atkSurv;
     state.lastBattle = { kind: 'raid', win: res.win, src: srcId, tgt: tgtId, res, stolen, ren, grain };
-    if (s.owner === 'player') pushLog(`🔥 Raid mot ${t.name}: ${stolen} silver${grain ? ' + ' + grain + ' mat' : ''} plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
+    if (s.owner === 'player') pushLog(`${naval ? '🌊' : '🔥'} ${naval ? 'Sjöraid' : 'Raid'} mot ${t.name}: ${stolen} silver${grain ? ' + ' + grain + ' mat' : ''} plundrat, +${ren} ära. ${res.atkLoss} stupade.`, stolen > 0 ? 'good' : 'bad');
     return res;
   }
 
@@ -140,78 +141,48 @@ const Engine = (function () {
     let silver = 0;
     provincesOf(fid).forEach(p => { silver += provinceIncome(p); });
     f.silver += silver;
-    f.food += foodIncome(fid) - upkeep(fid);    // golvas EJ — negativt => svält
+    f.food += foodIncome(fid) - upkeep(fid);
   }
-
   function desert(fid, n, reason) {
-    n = Math.min(n, warriorsOf(fid));
-    if (n <= 0) return;
-    let left = n;
-    provincesOf(fid).sort((a, b) => b.garrison - a.garrison).forEach(p => {
-      if (left <= 0) return;
-      const take = Math.min(p.garrison, left); p.garrison -= take; left -= take;
-    });
-    if (fid === 'player')
-      pushLog(reason === 'svalt' ? `☠️ Svält! ${n} krigare överger din ätt.` : `⚠️ Försörjningen brister — ${n} krigare deserterar.`, 'bad');
+    n = Math.min(n, warriorsOf(fid)); if (n <= 0) return; let left = n;
+    provincesOf(fid).sort((a, b) => b.garrison - a.garrison).forEach(p => { if (left <= 0) return; const take = Math.min(p.garrison, left); p.garrison -= take; left -= take; });
+    if (fid === 'player') pushLog(reason === 'svalt' ? `☠️ Svält! ${n} krigare överger din ätt.` : `⚠️ Försörjningen brister — ${n} krigare deserterar.`, 'bad');
   }
-
   function applyAttrition(fid) {
     const f = fac(fid);
-    if (f.food < 0) { desert(fid, Math.ceil(-f.food / 2), 'svalt'); f.food = 0; }      // 1 krigare per 2 saknad mat
+    if (f.food < 0) { desert(fid, Math.ceil(-f.food / 2), 'svalt'); f.food = 0; }
     const over = warriorsOf(fid) - supplyCap(fid);
     if (over > 0) desert(fid, Math.ceil(over * CONFIG.OVERCAP_DESERT), 'overcap');
   }
+  function regenLoot() { Object.values(state.provinces).forEach(p => { p.loot = Math.min(p.lootMax, p.loot + Math.max(1, Math.round(p.lootMax * 0.05))); }); }
 
-  function regenLoot() {
-    Object.values(state.provinces).forEach(p => {
-      p.loot = Math.min(p.lootMax, p.loot + Math.max(1, Math.round(p.lootMax * 0.05)));
-    });
-  }
-
-  // ---- AI ----
+  // ---- AI (samma för alla riken) ----
   function aiTurn(fid) {
     const f = fac(fid);
     const mine = provincesOf(fid);
     if (mine.length === 0) return;
-    const isChristian = f.kind === 'christian';
+    const viking = f.kind === 'viking';
     const headroom = () => supplyCap(fid) - warriorsOf(fid);
-
-    // 1) rekrytera mot ett MÅTTLIGT armémål — inte upp till hela försörjningstaket.
-    //    Så AI bygger en lagom här i stället för en passiv doomstack.
-    const armyTarget = countOf(fid) * (isChristian ? 14 : 10);
+    const armyTarget = countOf(fid) * 11;
     const cap = supplyCap(fid);
+    const isFront = p => neighbors(p.id).some(n => prov(n.id).owner !== fid);
+
     mine.forEach(p => {
-      const frontier = neighbors(p.id).some(n => prov(n.id).owner !== fid);
-      const gTarget = isChristian ? 18 : (frontier ? 14 : 7);
+      const gTarget = isFront(p) ? 14 : 7;
       if (warriorsOf(fid) < Math.min(cap, armyTarget) && p.garrison < gTarget &&
           headroom() >= CONFIG.RECRUIT_BATCH && f.silver >= CONFIG.RECRUIT_SILVER &&
           f.food >= CONFIG.RECRUIT_FOOD + 2 && p.recruited < recruitCap(p)) doRecruit(p.id);
     });
 
-    // 2) lägg överskotts-silver på 1 stadsbygge/tur när hären nått sitt mål (höjer mat + försvar)
     if (f.silver >= TIERS[1].cost && warriorsOf(fid) >= Math.min(cap, armyTarget) - CONFIG.RECRUIT_BATCH) {
       const cand = mine.filter(p => p.settlement < CONFIG.MAX_SETTLEMENT).sort((a, b) => {
-        const af = neighbors(a.id).some(n => prov(n.id).owner !== fid) ? 1 : 0;
-        const bf = neighbors(b.id).some(n => prov(n.id).owner !== fid) ? 1 : 0;
-        if (af !== bf) return isChristian ? bf - af : af - bf;   // kristna befäster fronten först
+        const af = isFront(a) ? 1 : 0, bf = isFront(b) ? 1 : 0;
+        if (af !== bf) return af - bf;
         return a.settlement - b.settlement;
       });
       for (const p of cand) { if (f.silver >= buildCost(p) && doBuild(p.id).ok) break; }
     }
 
-    if (isChristian) {
-      // defensiv: återtar förlorad mark men expanderar aldrig bortom utgångsläget
-      let acts = 0;
-      provincesOf(fid).forEach(p => {
-        if (acts >= 1 || countOf(fid) >= 9 || p.acted || p.garrison < 16) return;
-        const t = neighbors(p.id).map(n => prov(n.id))
-          .find(t => t.owner !== fid && t.type !== 'christian' && p.garrison > t.garrison * defMult(t) * 2.2);
-        if (t) { const before = t.owner; doInvade(p.id, t.id, p.garrison - 6); if (before === 'player' && t.owner === fid) pushLog(`☩ ${f.name} återtog ${t.name} från dig!`, 'bad'); acts++; }
-      });
-      return;
-    }
-
-    // 3) vikinga-AI: expandera & raida — lämna alltid 40 % garnison hemma
     let acts = 0;
     provincesOf(fid).slice().sort((a, b) => b.garrison - a.garrison).forEach(p => {
       if (acts >= 2 || p.acted || p.garrison < 6) return;
@@ -224,7 +195,25 @@ const Engine = (function () {
       if (send > best.garrison * defMult(best) * 1.4) {
         const before = best.owner; doInvade(p.id, best.id, send);
         if (before === 'player' && best.owner === fid) pushLog(`⚔️ ${f.name} erövrade ${best.name} från dig!`, 'bad'); acts++;
-      } else if (best.loot > 50) { doRaid(p.id, best.id, send); acts++; }
+      } else if (best.loot > 50) { doRaid(p.id, best.id, send, false); acts++; }
+    });
+
+    if (viking) navalRaidAI(fid);
+  }
+
+  function navalRaidAI(fid) {
+    let done = false;
+    provincesOf(fid).slice().sort((a, b) => b.garrison - a.garrison).forEach(p => {
+      if (done || p.acted || !p.coastal || p.garrison < 9) return;
+      const keep = Math.ceil(p.garrison * 0.5); const send = p.garrison - keep; if (send < 5) return;
+      let best = null, bs = 0;
+      Object.values(state.provinces).forEach(t => {
+        if (t.owner === fid || !t.coastal || isAdjacent(p.id, t.id)) return;
+        if (navalDist(p, t) > CONFIG.NAVAL_RAID_RANGE || t.loot < 70) return;
+        const score = t.loot - effectiveDefense(t) * 2.5;
+        if (send > effectiveDefense(t) * 0.7 && score > bs) { bs = score; best = t; }
+      });
+      if (best) { doRaid(p.id, best.id, send, true); done = true; }
     });
   }
 
@@ -232,17 +221,19 @@ const Engine = (function () {
     const pCount = countOf('player'), pRen = fac('player').renown;
     if (pCount === 0) { state.over = true; state.won = false; pushLog('☠️ Din ätt har fallit. Sagan är slut.', 'bad'); return; }
     if (pRen >= CONFIG.RENOWN_TO_WIN || pCount >= CONFIG.PROVINCES_TO_WIN) { state.over = true; state.won = true; pushLog('👑 Din ätt härskar över Norden! Seger!', 'good'); return; }
-    ['ravnsson', 'bjornsson'].forEach(fid => {
+    AI_IDS.forEach(fid => {
       if (state.over) return;
-      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) { state.over = true; state.won = false; pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad'); }
+      if (fac(fid).renown >= CONFIG.RENOWN_TO_WIN || countOf(fid) >= CONFIG.PROVINCES_TO_WIN) {
+        state.over = true; state.won = false; pushLog(`☠️ ${fac(fid).name} har vunnit kapplöpningen om Norden.`, 'bad');
+      }
     });
   }
 
   function endPlayerTurn() {
     if (state.over) return;
     state.selected = null;
-    ['bjornsson', 'ravnsson', 'christian'].forEach(aiTurn);
-    ['player', 'bjornsson', 'ravnsson', 'christian'].forEach(fid => { collectIncome(fid); applyAttrition(fid); });
+    AI_IDS.forEach(aiTurn);
+    ECON_IDS.forEach(fid => { collectIncome(fid); applyAttrition(fid); });
     regenLoot();
     Object.values(state.provinces).forEach(p => { p.acted = false; p.recruited = 0; });
     state.turn += 1;
@@ -254,7 +245,7 @@ const Engine = (function () {
     get state() { return state; },
     prov, fac, neighbors, isAdjacent, provincesOf, countOf, warriorsOf,
     tierOf, defMult, provinceIncome, provinceFood, recruitCap, buildCost, effectiveDefense,
-    foodIncome, supplyCap, upkeep,
+    foodIncome, supplyCap, upkeep, navalDist,
     doInvade, doRaid, doMarch, doRecruit, doBuild,
     endPlayerTurn, pushLog,
   };

@@ -92,14 +92,17 @@ const UI = (function () {
   // ---------- actionsheet ----------
   function openSheet(srcId, tgtId, kind) {
     pending = { src: srcId, tgt: tgtId, kind };
-    const s = Engine.prov(srcId), t = Engine.prov(tgtId), max = s.garrison, owner = Engine.fac(t.owner), friend = kind === 'friend';
-    const title = friend ? `→ Flytta till ${t.name}` : `⚔️ Mål: ${t.name}`;
+    const s = Engine.prov(srcId), t = Engine.prov(tgtId), max = s.garrison, owner = Engine.fac(t.owner);
+    const friend = kind === 'friend', naval = kind === 'naval';
+    const title = friend ? `→ Flytta till ${t.name}` : naval ? `🌊 Sjöraid mot ${t.name}` : `⚔️ Mål: ${t.name}`;
     const targetInfo = friend
       ? `<div class="sinfo">${t.name} har ${t.garrison} krigare (din ätt).</div>`
-      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name} &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b> &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b></div>`;
+      : `<div class="sinfo"><span class="dot" style="background:${owner.color}"></span> ${owner.name} &nbsp;·&nbsp; 🛡️ försvar <b>${Engine.effectiveDefense(t)}</b> &nbsp;·&nbsp; 💰 rovbyte <b>${t.loot}</b>${naval ? ' &nbsp;·&nbsp; 🌊 långskeppsled' : ''}</div>`;
     const btns = friend
       ? `<button class="big" data-do="march">→ Marschera hit</button>`
-      : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button><button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
+      : naval
+        ? `<button class="big raid" data-do="raid">🔥 Raida (sjöväg)<small>plundra & segla hem</small></button>`
+        : `<button class="big raid" data-do="raid">🔥 Raida<small>plundra silver, segla hem</small></button><button class="big invade" data-do="invade">⚔️ Erövra<small>besegra & ta landet</small></button>`;
     el.sheet.innerHTML =
       `<div class="sheet-card"><div class="stitle">${title}</div>${targetInfo}
          <div class="slider"><label>Skicka krigare: <b id="sval">${max}</b> / ${max}</label><input type="range" id="srange" min="1" max="${max}" value="${max}"><div class="odds" id="odds"></div></div>
@@ -118,7 +121,7 @@ const UI = (function () {
     const pn = pending; closeSheet();
     if (!pn || action === 'cancel') { refresh(); return; }
     if (action === 'march') Engine.doMarch(pn.src, pn.tgt, send);
-    if (action === 'raid') Engine.doRaid(pn.src, pn.tgt, send);
+    if (action === 'raid') Engine.doRaid(pn.src, pn.tgt, send, pn.kind === 'naval');
     if (action === 'invade') Engine.doInvade(pn.src, pn.tgt, send);
     Engine.state.selected = null; refresh();
   }
@@ -140,8 +143,8 @@ const UI = (function () {
            <li>🔴 Du leder <b>Ulfssons ätt</b> i Vestfold och Hordaland.</li>
            <li>🌾 <b>Mat föder din här</b> — du kan inte hålla fler krigare än du kan föda. Svält ger desertering.</li>
            <li>🏗️ <b>Bygg städer</b> i 6 nivåer (Torp→Fästning) för mer inkomst, mat och försvar.</li>
-           <li>🔥 <b>Raida</b> kristna riken (✝) för silver, mat och ära.</li>
-           <li>⚔️ <b>Erövra</b> grannregioner — landväg eller över hav.</li>
+           <li>⚔️ <b>Erövra</b> grannar och 🌊 <b>sjöraida</b> avlägsna kuster — långskeppen behöver ingen gräns.</li>
+           <li>✝ De <b>kristna kungarikena</b> krigar mot varandra — slå till när de är svaga.</li>
            <li>👑 Vinn genom <b>${CONFIG.RENOWN_TO_WIN} ära</b> eller <b>${CONFIG.PROVINCES_TO_WIN} regioner</b>.</li>
          </ul>
          <button class="big invade" id="startBtn">⛵ Sätt segel</button></div>`;
